@@ -18,7 +18,7 @@ func Setup(app *fiber.App, gw *gateway.Gateway) {
 	app.Use(middleware.ErrorHandler())
 
 	// 健康检查端点（不需要认证）
-	app.Get("/health", func(c *fiber.Ctx) error {
+	app.Get("/health", func(c fiber.Ctx) error {
 		return c.JSON(fiber.Map{
 			"status": "ok",
 			"service": "ai-gateway",
@@ -34,18 +34,44 @@ func Setup(app *fiber.App, gw *gateway.Gateway) {
 	// 限流中间件
 	v1.Use(middleware.RateLimit())
 
-	// 聊天完成接口
+	// ========== Chat API ==========
 	v1.Post("/chat/completions", handler.ChatCompletions)
-
-	// 文本完成接口
 	v1.Post("/completions", handler.Completions)
 
-	// 模型列表接口
+	// ========== Images API (per D-03) ==========
+	v1.Post("/images/generations", handler.CreateImage)
+	v1.Post("/images/edits", handler.CreateImageEdit)
+	v1.Post("/images/variations", handler.CreateImageVariation)
+
+	// ========== Audio API (per D-03) ==========
+	v1.Post("/audio/speech", handler.CreateSpeech)
+	v1.Post("/audio/transcriptions", handler.CreateTranscription)
+	v1.Post("/audio/translations", handler.CreateTranslation)
+
+	// ========== Embeddings API ==========
+	v1.Post("/embeddings", handler.CreateEmbedding)
+
+	// ========== Models API ==========
 	v1.Get("/models", handler.ListModels)
 
-	// 使用记录接口
+	// ========== User Management ==========
 	v1.Get("/usage", handler.GetUsage)
-
-	// 账单接口
 	v1.Get("/bills", handler.GenerateBill)
+
+	// ========== Admin API (per FR-006) ==========
+	admin := v1.Group("/admin")
+	// TODO: 添加管理员权限中间件
+	// admin.Use(middleware.RequireAdmin())
+
+	// Model management
+	admin.Post("/models", handler.CreateModel)
+	admin.Put("/models/:id", handler.UpdateModel)
+	admin.Delete("/models/:id", handler.DeleteModel)
+	admin.Get("/models", handler.AdminListModels)
+
+	// Supplier management
+	admin.Post("/suppliers", handler.CreateSupplier)
+	admin.Put("/suppliers/:id", handler.UpdateSupplier)
+	admin.Delete("/suppliers/:id", handler.DeleteSupplier)
+	admin.Get("/suppliers", handler.ListSuppliers)
 }
