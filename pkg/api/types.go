@@ -196,3 +196,35 @@ type EmbeddingUsage struct {
 	PromptTokens int `json:"prompt_tokens"`
 	TotalTokens  int `json:"total_tokens"`
 }
+
+// ========== Admin API Types ==========
+
+// CreateModelRequest 创建模型请求
+type CreateModelRequest struct {
+	Name        string   `json:"name"`
+	DisplayName string   `json:"display_name"`
+	ModelType   string   `json:"model_type"` // chat, completion, image, video, tts, stt, embedding, rerank
+	Capabilities []string `json:"capabilities"`
+	IsActive    bool     `json:"is_active"`
+}
+
+// UpdateModelRequest 更新模型请求
+type UpdateModelRequest struct {
+	DisplayName string   `json:"display_name,omitempty"`
+	Capabilities []string `json:"capabilities,omitempty"`
+	IsActive    *bool    `json:"is_active,omitempty"`
+}
+
+// CreateSupplierRequest 创建供应商请求
+type CreateSupplierRequest struct {
+	Name        string `json:"name"`
+	DisplayName string `json:"display_name"`
+	Provider    string `json:"provider"` // openai, anthropic, etc.
+	IsActive    bool   `json:"is_active"`
+}
+
+// UpdateSupplierRequest 更新供应商请求
+type UpdateSupplierRequest struct {
+	DisplayName string `json:"display_name,omitempty"`
+	IsActive    *bool  `json:"is_active,omitempty"`
+}
