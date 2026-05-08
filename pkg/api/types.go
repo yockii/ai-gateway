@@ -129,3 +129,39 @@ type ImageVariationRequest struct {
 	Size           string `json:"size,omitempty"`
 	ResponseFormat string `json:"response_format,omitempty"`
 }
+
+// ========== Audio API Types ==========
+
+// SpeechRequest 语音合成请求
+type SpeechRequest struct {
+	Model string  `json:"model"`
+	Input string  `json:"input"`
+	Voice string  `json:"voice"`           // alloy, echo, fable, onyx, nova, shimmer
+	Speed float64 `json:"speed,omitempty"` // 0.25 to 4.0
+}
+
+// TranscriptionRequest 转录请求
+type TranscriptionRequest struct {
+	Model          string   `json:"model"`
+	File           string   `json:"file"`             // Base64 or file upload
+	Language       string   `json:"language,omitempty"`
+	Prompt         string   `json:"prompt,omitempty"`
+	ResponseFormat string   `json:"response_format,omitempty"` // json, text, srt, verbose_json, vtt
+	Temperature    *float64 `json:"temperature,omitempty"`
+}
+
+// TranscriptionResponse 转录响应
+type TranscriptionResponse struct {
+	Text     string `json:"text"`
+	Task     string `json:"task,omitempty"`
+	Language string `json:"language,omitempty"`
+	Duration float64 `json:"duration,omitempty"`
+	Words    []Word `json:"words,omitempty"`
+}
+
+// Word 转录词
+type Word struct {
+	Word  string  `json:"word"`
+	Start float64 `json:"start"`
+	End   float64 `json:"end"`
+}

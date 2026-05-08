@@ -246,3 +246,24 @@ func (g *Gateway) ImageGeneration(ctx context.Context, userID string, req *api.I
 		},
 	}, nil
 }
+
+// TextToSpeech 文本转语音接口 (per D-04: 流式支持)
+func (g *Gateway) TextToSpeech(ctx context.Context, userID string, req *api.SpeechRequest) ([]byte, error) {
+	requestID := xid.New().String()
+
+	log.Printf("语音合成请求: 用户=%s 模型=%s RequestID=%s",
+		userID, req.Model, requestID)
+
+	// 选择最优路由
+	route, err := g.SelectBestRoute(ctx, userID, req.Model)
+	if err != nil {
+		return nil, fmt.Errorf("failed to select route: %w", err)
+	}
+
+	log.Printf("选择路由: 供应商=%s 模型=%s",
+		route.SupplierName, route.ActualModelName)
+
+	// TODO: 调用 Bifrost 实现语音合成
+	// 当前返回模拟音频数据
+	return []byte("mock-audio-data"), nil
+}
