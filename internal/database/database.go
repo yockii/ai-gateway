@@ -77,6 +77,7 @@ func (db *DB) AutoMigrate() error {
 		&models.UserGroupPricing{},
 		&models.ExternalModel{},
 		&models.UsageRecord{},
+		&models.UserAPIKey{},
 	}
 
 	// 逐个迁移模型
