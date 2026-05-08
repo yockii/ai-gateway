@@ -83,3 +83,49 @@ func (e *ErrorResponse) ToJSON() []byte {
 	json, _ := json.Marshal(e)
 	return json
 }
+
+// ========== Images API Types ==========
+
+// ImageRequest 图片生成请求
+type ImageRequest struct {
+	Model          string `json:"model"`
+	Prompt         string `json:"prompt"`
+	N              int    `json:"n,omitempty"`               // Number of images
+	Size           string `json:"size,omitempty"`            // 256x256, 512x512, 1024x1024
+	ResponseFormat string `json:"response_format,omitempty"` // url, b64_json
+	Quality        string `json:"quality,omitempty"`         // standard, hd
+	Style          string `json:"style,omitempty"`           // vivid, natural
+}
+
+// ImageResponse 图片生成响应
+type ImageResponse struct {
+	Created int64      `json:"created"`
+	Data    []ImageItem `json:"data"`
+}
+
+// ImageItem 图片项
+type ImageItem struct {
+	URL           string `json:"url,omitempty"`
+	B64JSON       string `json:"b64_json,omitempty"`
+	RevisedPrompt string `json:"revised_prompt,omitempty"`
+}
+
+// ImageEditRequest 图片编辑请求
+type ImageEditRequest struct {
+	Model          string `json:"model"`
+	Image          string `json:"image"`           // Base64 or file
+	Mask           string `json:"mask,omitempty"`  // Optional
+	Prompt         string `json:"prompt"`
+	N              int    `json:"n,omitempty"`
+	Size           string `json:"size,omitempty"`
+	ResponseFormat string `json:"response_format,omitempty"`
+}
+
+// ImageVariationRequest 图片变体请求
+type ImageVariationRequest struct {
+	Model          string `json:"model"`
+	Image          string `json:"image"`
+	N              int    `json:"n,omitempty"`
+	Size           string `json:"size,omitempty"`
+	ResponseFormat string `json:"response_format,omitempty"`
+}

@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strconv"
 	"time"
 
 	"github.com/gofiber/fiber/v3"
-	"github.com/rs/xid"
 	"github.com/yockii/ai-gateway/internal/gateway"
 	"github.com/yockii/ai-gateway/internal/middleware"
 	"github.com/yockii/ai-gateway/pkg/api"
@@ -26,13 +26,13 @@ func New(gw *gateway.Gateway) *Handler {
 }
 
 // ChatCompletions 聊天完成接口
-func (h *Handler) ChatCompletions(c *fiber.Ctx) error {
+func (h *Handler) ChatCompletions(c fiber.Ctx) error {
 	// 获取用户 ID
 	userID := middleware.GetUserID(c)
 
 	// 解析请求
 	var req api.ChatCompletionRequest
-	if err := c.BodyParser(&req); err != nil {
+	if err := c.Bind().Body(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(api.ErrorResponse{
 			Error: api.ErrorDetail{
 				Message: "Invalid request body",
@@ -74,7 +74,7 @@ func (h *Handler) ChatCompletions(c *fiber.Ctx) error {
 }
 
 // Completions 文本完成接口
-func (h *Handler) Completions(c *fiber.Ctx) error {
+func (h *Handler) Completions(c fiber.Ctx) error {
 	// TODO: 实现 Completions 接口
 	return c.Status(fiber.StatusNotImplemented).JSON(api.ErrorResponse{
 		Error: api.ErrorDetail{
@@ -86,7 +86,7 @@ func (h *Handler) Completions(c *fiber.Ctx) error {
 }
 
 // ListModels 列出可用模型
-func (h *Handler) ListModels(c *fiber.Ctx) error {
+func (h *Handler) ListModels(c fiber.Ctx) error {
 	// TODO: 从数据库查询可用模型
 	models := &api.ModelsResponse{
 		Object: "list",
@@ -110,13 +110,13 @@ func (h *Handler) ListModels(c *fiber.Ctx) error {
 }
 
 // GetUsage 获取使用记录
-func (h *Handler) GetUsage(c *fiber.Ctx) error {
+func (h *Handler) GetUsage(c fiber.Ctx) error {
 	userID := middleware.GetUserID(c)
 
 	// 获取查询参数
 	days := 30 // 默认 30 天
-	if daysParam := c.Query("days"); daysParam != "" {
-		if d, err := c.QueryInt("days", 30); err == nil && d > 0 {
+	if daysParam := c.Query("days", ""); daysParam != "" {
+		if d, err := strconv.Atoi(daysParam); err == nil && d > 0 {
 			days = d
 		}
 	}
@@ -130,7 +130,7 @@ func (h *Handler) GetUsage(c *fiber.Ctx) error {
 }
 
 // GenerateBill 生成账单
-func (h *Handler) GenerateBill(c *fiber.Ctx) error {
+func (h *Handler) GenerateBill(c fiber.Ctx) error {
 	userID := middleware.GetUserID(c)
 
 	// 获取查询参数

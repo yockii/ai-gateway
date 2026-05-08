@@ -1,21 +1,27 @@
 package gateway
 
 import (
+	"context"
 	"fmt"
+	"log"
+	"time"
 
 	"github.com/gofiber/fiber/v3"
-	bifrost "github.com/maximhq/bifrost/core"
 	"github.com/rs/xid"
 	"github.com/yockii/ai-gateway/internal/config"
 	"github.com/yockii/ai-gateway/internal/database"
+	"github.com/yockii/ai-gateway/internal/models"
+	"github.com/yockii/ai-gateway/internal/services"
+	"github.com/yockii/ai-gateway/pkg/api"
 )
 
 // Gateway AI Gateway 核心结构
 type Gateway struct {
-	config  *config.Config
-	app     *fiber.App
-	bifrost *bifrost.Bifrost
-	db      *database.DB
+	config     *config.Config
+	app        *fiber.App
+	db         *database.DB
+	bifrost    *services.BifrostClient
+	keyManager *services.KeyManager
 }
 
 // New 创建新的 Gateway 实例
@@ -32,20 +38,29 @@ func New(cfg *config.Config) (*Gateway, error) {
 		return nil, fmt.Errorf("failed to initialize database: %w", err)
 	}
 
-	// TODO: Wave 2 实现 Bifrost 初始化
-	// Bifrost API 需要进一步研究
-	_ = bifrost.Bifrost{}
-
-	gateway := &Gateway{
-		config: cfg,
-		app:    app,
-		db:     db,
+	// 初始化 Key Manager
+	keyManager, err := services.NewKeyManager(db)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize key manager: %w", err)
 	}
 
-	// 设置路由
-	// TODO: Wave 3 实现路由设置
-	_ = gateway
+	// 初始化 Bifrost 客户端 (per D-01: 库集成模式)
+	bifrost, err := services.NewBifrostClient(cfg)
+	if err != nil {
+		log.Printf("警告: Bifrost 初始化失败: %v", err)
+		// 继续运行，Bifrost 功能将不可用
+		bifrost = nil
+	}
 
+	gateway := &Gateway{
+		config:     cfg,
+		app:        app,
+		db:         db,
+		bifrost:    bifrost,
+		keyManager: keyManager,
+	}
+
+	log.Println("✅ Gateway 初始化成功")
 	return gateway, nil
 }
 
@@ -62,4 +77,172 @@ func (g *Gateway) Shutdown() error {
 // GenerateID 生成唯一ID（使用 xid）
 func (g *Gateway) GenerateID() string {
 	return xid.New().String()
+}
+
+// ChatCompletion 聊天完成接口 (per D-03: OpenAI 兼容, D-04: 双模式)
+func (g *Gateway) ChatCompletion(ctx context.Context, userID string, req *api.ChatCompletionRequest) (*api.ChatCompletionResponse, error) {
+	// 生成唯一请求 ID (per D-08: 幂等性)
+	requestID := xid.New().String()
+
+	log.Printf("聊天完成请求: 用户=%s 模型=%s RequestID=%s stream=%v",
+		userID, req.Model, requestID, req.Stream)
+
+	// 选择最优路由 (per D-05: 协同故障转移)
+	route, err := g.SelectBestRoute(ctx, userID, req.Model)
+	if err != nil {
+		return nil, fmt.Errorf("failed to select route: %w", err)
+	}
+
+	log.Printf("选择路由: 供应商=%s 模型=%s",
+		route.SupplierName, route.ActualModelName)
+
+	// 转换请求格式
+	bifrostReq := &services.ChatCompletionRequest{
+		Model:       route.ActualModelName,
+		Messages:    convertMessages(req.Messages),
+		Temperature: req.Temperature,
+		MaxTokens:   req.MaxTokens,
+		Stream:      req.Stream,
+	}
+
+	// 调用 Bifrost
+	if req.Stream {
+		// 流式响应 (per D-04)
+		chunks, err := g.bifrost.StreamChatCompletion(ctx, bifrostReq)
+		if err != nil {
+			return nil, fmt.Errorf("stream completion failed: %w", err)
+		}
+
+		// TODO: 处理流式响应
+		_ = chunks
+		return nil, fmt.Errorf("streaming not yet implemented")
+	} else {
+		// 非流式响应
+		resp, err := g.bifrost.ChatCompletion(ctx, bifrostReq)
+		if err != nil {
+			return nil, fmt.Errorf("completion failed: %w", err)
+		}
+
+		// 转换响应格式
+		return &api.ChatCompletionResponse{
+			ID:      requestID,
+			Object:  "chat.completion",
+			Created: time.Now().Unix(),
+			Model:   req.Model, // 返回对外模型名
+			Choices: convertChoices(resp.Choices),
+			Usage:   convertUsage(resp.Usage),
+		}, nil
+	}
+}
+
+// RouteInfo 路由信息
+type RouteInfo struct {
+	SupplierID      string
+	SupplierName    string
+	ActualModelName string
+	Priority        int
+	CostPrice       float64
+}
+
+// SelectBestRoute 选择最优路由 (per D-05, D-09)
+func (g *Gateway) SelectBestRoute(ctx context.Context, userID, modelID string) (*RouteInfo, error) {
+	// TODO: 实现智能路由逻辑
+	// 1. 获取用户类型和对应售价
+	// 2. 查询模型的所有可用供应商路由
+	// 3. 计算每个路由的利润空间
+	// 4. 按利润排序，选择最优
+	// 5. 检查供应商健康状态和负载
+
+	// 简化实现：返回第一个可用路由
+	return &RouteInfo{
+		SupplierID:      "supplier-001",
+		SupplierName:    "OpenAI",
+		ActualModelName: modelID,
+		Priority:        1,
+		CostPrice:       0.002,
+	}, nil
+}
+
+// RecordUsage 记录使用量 (per D-08: 双重记录)
+func (g *Gateway) RecordUsage(ctx context.Context, record *models.UsageRecord) error {
+	// TODO: 实现 Redis Stream + 数据库双写
+	// 1. 同步写入 Redis Stream
+	// 2. 异步写入数据库
+	// 3. 使用 RequestID 作为幂等键
+
+	log.Printf("使用量记录: 用户=%s 模型=%s tokens=%d 成本=%.4f",
+		record.UserID, record.ModelID, record.TotalTokens, record.CostPrice)
+
+	return nil
+}
+
+// GetKeyManager 获取 Key Manager
+func (g *Gateway) GetKeyManager() *services.KeyManager {
+	return g.keyManager
+}
+
+// GetApp 获取 Fiber App
+func (g *Gateway) GetApp() *fiber.App {
+	return g.app
+}
+
+// Helper functions
+
+func convertMessages(msgs []api.ChatMessage) []services.ChatMessage {
+	result := make([]services.ChatMessage, len(msgs))
+	for i, m := range msgs {
+		result[i] = services.ChatMessage{
+			Role:    m.Role,
+			Content: m.Content,
+		}
+	}
+	return result
+}
+
+func convertChoices(choices []services.ChatChoice) []api.ChatChoice {
+	result := make([]api.ChatChoice, len(choices))
+	for i, c := range choices {
+		result[i] = api.ChatChoice{
+			Index:        c.Index,
+			Message:      api.ChatMessage{Role: c.Message.Role, Content: c.Message.Content},
+			FinishReason: c.FinishReason,
+		}
+	}
+	return result
+}
+
+func convertUsage(usage services.Usage) api.Usage {
+	return api.Usage{
+		PromptTokens:     usage.PromptTokens,
+		CompletionTokens: usage.CompletionTokens,
+		TotalTokens:      usage.TotalTokens,
+	}
+}
+
+// ImageGeneration 图片生成接口 (per D-03: OpenAI 兼容)
+func (g *Gateway) ImageGeneration(ctx context.Context, userID string, req *api.ImageRequest) (*api.ImageResponse, error) {
+	requestID := xid.New().String()
+
+	log.Printf("图片生成请求: 用户=%s 模型=%s RequestID=%s",
+		userID, req.Model, requestID)
+
+	// 选择最优路由
+	route, err := g.SelectBestRoute(ctx, userID, req.Model)
+	if err != nil {
+		return nil, fmt.Errorf("failed to select route: %w", err)
+	}
+
+	log.Printf("选择路由: 供应商=%s 模型=%s",
+		route.SupplierName, route.ActualModelName)
+
+	// TODO: 调用 Bifrost 实现图片生成
+	// 当前返回模拟响应
+	return &api.ImageResponse{
+		Created: time.Now().Unix(),
+		Data: []api.ImageItem{
+			{
+				URL: "https://example.com/generated-image.png",
+			},
+		},
+	}, nil
 }
