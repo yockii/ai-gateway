@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"strconv"
+	"time"
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/redis/go-redis/v9"
@@ -21,6 +22,51 @@ func NewConcurrencyLimiter(redisClient *redis.Client) *ConcurrencyLimiter {
 	return &ConcurrencyLimiter{
 		redis: redisClient,
 	}
+}
+
+// CheckConcurrencyLimits 使用 Pipeline 批量检查并发限制（优化版）
+func CheckConcurrencyLimits(ctx context.Context, redis *redis.Client, keyID, model string, userLimit, modelLimit int64) (bool, error) {
+	pipe := redis.Pipeline()
+
+	keyUser := fmt.Sprintf("concurrency:%s", keyID)
+	keyModel := fmt.Sprintf("concurrency:%s:model:%s", keyID, model)
+
+	// 使用 Pipeline 批量操作
+	incrUser := pipe.Incr(ctx, keyUser)
+	incrModel := pipe.Incr(ctx, keyModel)
+	expireUser := pipe.Expire(ctx, keyUser, time.Hour)
+	expireModel := pipe.Expire(ctx, keyModel, time.Hour)
+
+	_, err := pipe.Exec(ctx)
+	if err != nil {
+		return false, fmt.Errorf("pipeline execution failed: %w", err)
+	}
+
+	// 检查限制
+	userCount := incrUser.Val()
+	modelCount := incrModel.Val()
+
+	// 如果超过限制，回滚计数器
+	if (userLimit > 0 && userCount > userLimit) || (modelLimit > 0 && modelCount > modelLimit) {
+		// 异步回滚，不阻塞响应
+		go func() {
+			redis.Decr(context.Background(), keyUser)
+			if modelLimit > 0 {
+				redis.Decr(context.Background(), keyModel)
+			}
+		}()
+		return false, nil
+	}
+
+	// 设置过期时间（仅在首次创建时）
+	if userCount == 1 {
+		expireUser.Val()
+	}
+	if modelCount == 1 && modelLimit > 0 {
+		expireModel.Val()
+	}
+
+	return true, nil
 }
 
 // ConcurrentLimit 并发限制中间件
@@ -105,10 +151,34 @@ func (cl *ConcurrencyLimiter) incrementConcurrency(ctx context.Context, apiKey, 
 	return result, nil
 }
 
-// decrementConcurrency 减少并发计数
+// decrementConcurrency 减少并发计数（异步优化版）
 func (cl *ConcurrencyLimiter) decrementConcurrency(ctx context.Context, apiKey, modelID string) {
-	key := cl.concurrencyKey(apiKey, modelID)
-	cl.redis.Decr(ctx, key)
+	// 异步减少计数，不阻塞请求处理
+	go func() {
+		key := cl.concurrencyKey(apiKey, modelID)
+		cl.redis.Decr(context.Background(), key)
+	}()
+}
+
+// decrementConcurrencyBatch 批量减少并发计数（使用 Pipeline）
+func (cl *ConcurrencyLimiter) decrementConcurrencyBatch(ctx context.Context, operations []ConcurrencyOp) {
+	if len(operations) == 0 {
+		return
+	}
+
+	// 使用 Pipeline 批量执行
+	pipe := cl.redis.Pipeline()
+	for _, op := range operations {
+		key := cl.concurrencyKey(op.APIKey, op.ModelID)
+		pipe.Decr(ctx, key)
+	}
+	pipe.Exec(ctx)
+}
+
+// ConcurrencyOp 并发操作
+type ConcurrencyOp struct {
+	APIKey  string
+	ModelID string
 }
 
 // concurrencyKey 生成并发计数 Redis key

@@ -41,16 +41,17 @@ func New(dsn string) (*DB, error) {
 		return nil, fmt.Errorf("failed to connect to database: %w", err)
 	}
 
-	// 配置连接池
+	// 配置连接池（优化高性能场景）
 	sqlDB, err := db.DB()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get database instance: %w", err)
 	}
 
-	// 设置连接池参数
-	sqlDB.SetMaxIdleConns(10)
-	sqlDB.SetMaxOpenConns(100)
-	sqlDB.SetConnMaxLifetime(time.Hour)
+	// 设置连接池参数（针对高并发优化）
+	sqlDB.SetMaxIdleConns(20)             // 增加空闲连接数
+	sqlDB.SetMaxOpenConns(200)            // 增加最大连接数以支持 10000+ QPS
+	sqlDB.SetConnMaxLifetime(time.Hour)   // 连接最大生存时间
+	sqlDB.SetConnMaxIdleTime(10 * time.Minute) // 空闲连接最大生存时间
 
 	database := &DB{DB: db}
 
