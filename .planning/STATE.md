@@ -13,8 +13,8 @@ progress:
 last_session:
   phase: "03"
   phase_name: "高级功能开发"
-  stopped_at: "Phase 03 context gathered"
-  resume_file: ".planning/phases/03-高级功能开发/03-CONTEXT.md"
+  stopped_at: "Phase 03 UI-SPEC approved"
+  resume_file: ".planning/phases/03-高级功能开发/03-UI-SPEC.md"
   session_date: "2026-05-08"
 ---
 
