@@ -683,6 +683,24 @@ type Metrics struct {
 
 ---
 
+### Phase 3 执行计划
+
+**Status:** 🔄 IN PROGRESS (2026-05-08)
+
+**Plans:** 待创建
+
+**Wave Structure:**
+- **Wave 1:** 03-01 (User Portal UI), 03-02 (Admin Portal UI) - 待规划
+- **Wave 2:** 03-03 (Performance & Security), 03-04 (Monitoring & Logging) - 待规划
+
+**Plan Details:**
+- [ ] `03-01-PLAN.md` — 用户端界面完善 (Vue 3 + shadcn-vue)
+- [ ] `03-02-PLAN.md` — 运维管理端界面完善 (Vue 3 + shadcn-vue)
+- [ ] `03-03-PLAN.md` — 性能优化和安全加固
+- [ ] `03-04-PLAN.md` — 监控和日志系统
+
+---
+
 ## Phase 4: 测试和部署
 
 **时间**: Week 15-16 (1-2 周)
