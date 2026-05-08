@@ -107,3 +107,20 @@ type Admin struct {
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
+
+// UserAPIKey 用户 API Key (per D-11, D-12, D-13)
+type UserAPIKey struct {
+	ID                string         `json:"id" gorm:"primaryKey"`
+	UserID            string         `json:"user_id" gorm:"index"`
+	KeyValue          string         `json:"-" gorm:"uniqueIndex"` // 不在 JSON 中显示
+	Name              string         `json:"name"`
+	QuotaDaily        int64          `json:"quota_daily"`
+	QuotaMonthly      int64          `json:"quota_monthly"`
+	ConcurrencyLimit  int64          `json:"concurrency_limit"`
+	ModelConcurrency  map[string]int64 `json:"model_concurrency" gorm:"serializer:json"` // Model-specific: {"gpt-4": 5, "gpt-3.5-turbo": 10}
+	LastCalculatedAt  *time.Time     `json:"last_calculated_at"` // For concurrency tracking
+	ExpiresAt         time.Time      `json:"expires_at"`
+	IsActive          bool           `json:"is_active" gorm:"index"`
+	CreatedAt         time.Time      `json:"created_at"`
+	UpdatedAt         time.Time      `json:"updated_at"`
+}
