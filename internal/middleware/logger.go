@@ -1,10 +1,11 @@
 package middleware
 
 import (
-	"log"
 	"time"
 
 	"github.com/gofiber/fiber/v3"
+	"github.com/yockii/ai-gateway/internal/logging"
+	"go.uber.org/zap"
 )
 
 // Logger 请求日志中间件
@@ -18,14 +19,14 @@ func Logger() fiber.Handler {
 		// 计算耗时
 		duration := time.Since(start)
 
-		// 记录日志
-		log.Printf("[%s] %s %s - %d - %v - %s",
-			c.IP(),
-			c.Method(),
-			c.Path(),
-			c.Response().StatusCode(),
-			duration,
-			c.Query("user_id", ""), // 记录用户 ID（如果有）
+		// 记录结构化日志
+		logging.Info("HTTP Request",
+			zap.String("method", c.Method()),
+			zap.String("path", c.Path()),
+			zap.Int("status", c.Response().StatusCode()),
+			zap.Duration("duration", duration),
+			zap.String("ip", c.IP()),
+			zap.String("user_id", c.Query("user_id", "")),
 		)
 
 		return err

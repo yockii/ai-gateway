@@ -9,6 +9,7 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/yockii/ai-gateway/internal/config"
 	"github.com/yockii/ai-gateway/internal/gateway"
+	"github.com/yockii/ai-gateway/internal/logging"
 	"github.com/yockii/ai-gateway/pkg/router"
 )
 
@@ -23,6 +24,12 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to load config: %v", err)
 	}
+
+	// 初始化日志
+	if err := logging.InitLogger(os.Getenv("ENV")); err != nil {
+		log.Fatalf("Failed to initialize logger: %v", err)
+	}
+	defer logging.Sync()
 
 	// 初始化网关
 	app, err := gateway.New(cfg)
