@@ -2,7 +2,9 @@ package router
 
 import (
 	"github.com/gofiber/fiber/v3"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/yockii/ai-gateway/internal/gateway"
+	"github.com/yockii/ai-gateway/internal/metrics"
 	"github.com/yockii/ai-gateway/internal/middleware"
 	"github.com/yockii/ai-gateway/pkg/handlers"
 )
@@ -17,13 +19,19 @@ func Setup(app *fiber.App, gw *gateway.Gateway) {
 	app.Use(middleware.Logger())
 	app.Use(middleware.ErrorHandler())
 
+	// Prometheus metrics 中间件
+	app.Use(metrics.PrometheusMiddleware())
+
 	// 健康检查端点（不需要认证）
 	app.Get("/health", func(c fiber.Ctx) error {
 		return c.JSON(fiber.Map{
-			"status": "ok",
+			"status":  "ok",
 			"service": "ai-gateway",
 		})
 	})
+
+	// Metrics 端点（不需要认证）
+	app.Get("/metrics", ServeHTTPAdapter(promhttp.Handler()))
 
 	// API v1 路由组
 	v1 := app.Group("/v1")

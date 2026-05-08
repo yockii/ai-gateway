@@ -9,6 +9,7 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/yockii/ai-gateway/internal/config"
 	"github.com/yockii/ai-gateway/internal/gateway"
+	"github.com/yockii/ai-gateway/pkg/router"
 )
 
 func main() {
@@ -28,6 +29,9 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to initialize gateway: %v", err)
 	}
+
+	// 设置路由
+	router.Setup(app.GetApp(), app)
 
 	// 启动服务
 	go func() {
