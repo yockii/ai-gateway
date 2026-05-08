@@ -7,6 +7,7 @@ import (
 // UsageRecord 使用记录
 type UsageRecord struct {
 	ID         string    `json:"id" gorm:"primaryKey"`
+	RequestID  string    `json:"request_id" gorm:"uniqueIndex"` // 幂等键 (per D-08)
 	UserID     string    `json:"user_id" gorm:"index"`
 	ModelID    string    `json:"model_id" gorm:"index"`
 	SupplierID string    `json:"supplier_id" gorm:"index"`
@@ -123,4 +124,48 @@ type UserAPIKey struct {
 	IsActive          bool           `json:"is_active" gorm:"index"`
 	CreatedAt         time.Time      `json:"created_at"`
 	UpdatedAt         time.Time      `json:"updated_at"`
+}
+
+// Bill 账单
+type Bill struct {
+	ID            string             `json:"id" gorm:"primaryKey"`
+	UserID        string             `json:"user_id" gorm:"index"`
+	Period        string             `json:"period" gorm:"index"` // YYYY-MM 格式
+	StartDate     time.Time          `json:"start_date"`
+	EndDate       time.Time          `json:"end_date"`
+	Items         []BillModelDetail  `json:"items" gorm:"-"` // 不存储在 DB
+	TotalRequests int64              `json:"total_requests"`
+	TotalCost     float64            `json:"total_cost"`
+	TotalRevenue  float64            `json:"total_revenue"`
+	TotalProfit   float64            `json:"total_profit"`
+	Status        string             `json:"status"` // pending, paid, overdue
+	CreatedAt     time.Time          `json:"created_at" gorm:"index"`
+	UpdatedAt     time.Time          `json:"updated_at"`
+}
+
+// BillModelDetail 账单模型明细 (用于 JSON 响应)
+type BillModelDetail struct {
+	ModelID       string  `json:"model_id"`
+	RequestCount  int     `json:"request_count"`
+	InputTokens   int32   `json:"input_tokens"`
+	OutputTokens  int32   `json:"output_tokens"`
+	TotalTokens   int32   `json:"total_tokens"`
+	TotalCost     float64 `json:"total_cost"`
+	TotalRevenue  float64 `json:"total_revenue"`
+	TotalProfit   float64 `json:"total_profit"`
+}
+
+// BillItem 账单明细
+type BillItem struct {
+	ID           string    `json:"id" gorm:"primaryKey"`
+	BillID       string    `json:"bill_id" gorm:"index"`
+	ModelID      string    `json:"model_id"`
+	RequestCount int       `json:"request_count"`
+	InputTokens  int32     `json:"input_tokens"`
+	OutputTokens int32     `json:"output_tokens"`
+	TotalTokens  int32     `json:"total_tokens"`
+	TotalCost    float64   `json:"total_cost"`
+	TotalRevenue float64   `json:"total_revenue"`
+	TotalProfit  float64   `json:"total_profit"`
+	CreatedAt    time.Time `json:"created_at"`
 }

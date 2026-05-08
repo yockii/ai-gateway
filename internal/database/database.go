@@ -84,6 +84,8 @@ func (db *DB) AutoMigrate() error {
 		&models.ModelMapping{},
 		&models.SupplierCostPricingExtended{},
 		&models.UserGroupPricingExtended{},
+		&models.Bill{},
+		&models.BillItem{},
 	}
 
 	// 逐个迁移模型
