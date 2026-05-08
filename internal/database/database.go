@@ -78,6 +78,12 @@ func (db *DB) AutoMigrate() error {
 		&models.ExternalModel{},
 		&models.UsageRecord{},
 		&models.UserAPIKey{},
+		&models.MembershipTier{},
+		&models.MembershipDiscount{},
+		&models.UserMembership{},
+		&models.ModelMapping{},
+		&models.SupplierCostPricingExtended{},
+		&models.UserGroupPricingExtended{},
 	}
 
 	// 逐个迁移模型
