@@ -12,6 +12,7 @@ import (
 type Config struct {
 	Server   ServerConfig
 	Database DatabaseConfig
+	Redis    RedisConfig
 	Bifrost  BifrostConfig
 	Cost     CostConfig
 	Log      LogConfig
@@ -40,6 +41,18 @@ type DatabaseConfig struct {
 func (d *DatabaseConfig) DSN() string {
 	return fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
 		d.Host, d.Port, d.User, d.Password, d.DBName, d.SSLMode)
+}
+
+// RedisConfig Redis 配置
+type RedisConfig struct {
+	Addr     string
+	Password string
+	DB       int
+	PoolSize int
+}
+
+func (r *RedisConfig) Address() string {
+	return r.Addr
 }
 
 // BifrostConfig Bifrost 配置
@@ -78,6 +91,12 @@ func Load() (*Config, error) {
 			Password: getEnv("DB_PASSWORD", "llm_gateway"),
 			DBName:   getEnv("DB_NAME", "llm_gateway"),
 			SSLMode:  getEnv("DB_SSLMODE", "disable"),
+		},
+		Redis: RedisConfig{
+			Addr:     getEnv("REDIS_ADDR", "localhost:6379"),
+			Password: getEnv("REDIS_PASSWORD", ""),
+			DB:       getEnvInt("REDIS_DB", 0),
+			PoolSize: getEnvInt("REDIS_POOL_SIZE", 100),
 		},
 		Bifrost: BifrostConfig{
 			ConfigPath: getEnv("BIFROST_CONFIG_PATH", "./config/bifrost.json"),
