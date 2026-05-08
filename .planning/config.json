@@ -1,0 +1,76 @@
+{
+  "project": {
+    "name": "ai_gateway",
+    "description": "AI大模型网关平台 - 统一接口调用多种大模型的一致性体验",
+    "version": "2.0.0",
+    "status": "planning",
+    "architecture": "service-separated"
+  },
+  "workflow": {
+    "autoCommit": false,
+    "requireApproval": true,
+    "parallelPhases": true,
+    "skipResearch": false,
+    "detailedPlans": true
+  },
+  "team": {
+    "size": "medium",
+    "developers": 3,
+    "timeline": "12-16 weeks"
+  },
+  "tech": {
+    "backend": {
+      "language": "Go",
+      "version": "1.26.2",
+      "database": "postgresql",
+      "orm": "gorm",
+      "architecture": "microservice"
+    },
+    "frontend": {
+      "framework": "Vue 3",
+      "language": "TypeScript",
+      "ui": "shadcn-vue",
+      "build": "Vite"
+    },
+    "services": {
+      "api_gateway": "standalone",
+      "user_portal": "standalone",
+      "admin_portal": "standalone"
+    }
+  },
+  "features": {
+    "model_types": [
+      "chat",
+      "completion",
+      "image",
+      "video",
+      "tts",
+      "stt",
+      "embedding",
+      "reranking"
+    ],
+    "pricing": "bifrost-based",
+    "api_format": "openai-compatible"
+  },
+  "integrations": {
+    "bifrost": {
+      "path": "D:/projects/github.com/maximhq/bifrost",
+      "status": "evaluating",
+      "features": [
+        "unified-interface",
+        "pricing-system",
+        "load-balancing",
+        "failover"
+      ]
+    }
+  },
+  "database": {
+    "host": "localhost",
+    "port": 5432,
+    "database": "llm_gateway",
+    "user": "llm_gateway",
+    "password": "llm_gateway",
+    "auto_migration": true,
+    "foreign_keys": false
+  }
+}

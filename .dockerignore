@@ -1,0 +1,39 @@
+# Git
+.git
+.gitignore
+
+# 文档
+README.md
+*.md
+.planning/
+
+# 测试
+*_test.go
+benchmarks/
+coverage.out
+coverage.html
+
+# 临时文件
+*.tmp
+*.log
+.env
+
+# 构建产物
+bin/
+dist/
+build/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 操作系统
+.DS_Store
+Thumbs.db
+
+# 其他
+node_modules/
+vendor/
