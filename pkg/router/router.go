@@ -82,4 +82,14 @@ func Setup(app *fiber.App, gw *gateway.Gateway) {
 	admin.Put("/suppliers/:id", handler.UpdateSupplier)
 	admin.Delete("/suppliers/:id", handler.DeleteSupplier)
 	admin.Get("/suppliers", handler.ListSuppliers)
+
+	// ========== Monitoring API (per 03-04) ==========
+	// Note: Monitoring endpoints should be accessible to admin users
+	monitoringHandler := handlers.NewMonitoringHandler("http://prometheus:9090")
+
+	admin.Get("/monitoring/metrics", monitoringHandler.GetSystemMetrics)
+	admin.Get("/monitoring/overview", monitoringHandler.GetMetricsOverview)
+	admin.Get("/monitoring/model-metrics", monitoringHandler.GetModelMetrics)
+	admin.Get("/monitoring/alerts", monitoringHandler.GetAlerts)
+	admin.Get("/monitoring/logs", monitoringHandler.GetLogs)
 }
