@@ -1,6 +1,7 @@
 package database
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"time"
@@ -52,6 +53,9 @@ func New(dsn string) (*DB, error) {
 	sqlDB.SetConnMaxLifetime(time.Hour)
 
 	database := &DB{DB: db}
+
+	// 注册查询性能监控回调
+	registerQueryCallbacks(db)
 
 	// 自动迁移表结构
 	if err := database.AutoMigrate(); err != nil {
@@ -113,6 +117,48 @@ func (db *DB) createIndexes() error {
 		log.Printf("警告: 创建索引失败 (可能已存在): %v", err)
 	}
 
+	// UsageRecord 模型和时间索引
+	// 用于按模型统计使用情况
+	if err := db.Exec("CREATE INDEX IF NOT EXISTS idx_usage_records_model_created ON usage_records(model_id, created_at)").Error; err != nil {
+		log.Printf("警告: 创建索引失败 (可能已存在): %v", err)
+	}
+
+	// UsageRecord 供应商索引
+	// 用于供应商统计
+	if err := db.Exec("CREATE INDEX IF NOT EXISTS idx_usage_records_supplier_created ON usage_records(supplier_id, created_at)").Error; err != nil {
+		log.Printf("警告: 创建索引失败 (可能已存在): %v", err)
+	}
+
+	// UserAPIKey 复合索引
+	// 用于查询用户的活跃 API Key
+	if err := db.Exec("CREATE INDEX IF NOT EXISTS idx_user_api_keys_user_active ON user_api_keys(user_id, is_active)").Error; err != nil {
+		log.Printf("警告: 创建索引失败 (可能已存在): %v", err)
+	}
+
+	// UserAPIKey 过期时间索引
+	// 用于查询过期密钥
+	if err := db.Exec("CREATE INDEX IF NOT EXISTS idx_user_api_keys_expires_active ON user_api_keys(expires_at, is_active)").Error; err != nil {
+		log.Printf("警告: 创建索引失败 (可能已存在): %v", err)
+	}
+
+	// Bill 复合索引
+	// 用于查询用户账单
+	if err := db.Exec("CREATE INDEX IF NOT EXISTS idx_bills_user_period ON bills(user_id, period)").Error; err != nil {
+		log.Printf("警告: 创建索引失败 (可能已存在): %v", err)
+	}
+
+	// Bill 状态索引
+	// 用于查询待支付账单
+	if err := db.Exec("CREATE INDEX IF NOT EXISTS idx_bills_status ON bills(status)").Error; err != nil {
+		log.Printf("警告: 创建索引失败 (可能已存在): %v", err)
+	}
+
+	// BillItem 账单明细索引
+	// 用于查询账单明细
+	if err := db.Exec("CREATE INDEX IF NOT EXISTS idx_bill_items_bill_id ON bill_items(bill_id)").Error; err != nil {
+		log.Printf("警告: 创建索引失败 (可能已存在): %v", err)
+	}
+
 	// SupplierCostPricing 复合索引
 	// 用于查询供应商的活跃定价
 	if err := db.Exec("CREATE INDEX IF NOT EXISTS idx_supplier_cost_supplier_model_active ON supplier_cost_pricings(supplier_id, model_id, is_active)").Error; err != nil {
@@ -122,6 +168,24 @@ func (db *DB) createIndexes() error {
 	// UserGroupPricing 复合索引
 	// 用于查询用户群体的活跃定价
 	if err := db.Exec("CREATE INDEX IF NOT EXISTS idx_user_group_pricing_group_model_active ON user_group_pricings(user_group_id, model_id, is_active)").Error; err != nil {
+		log.Printf("警告: 创建索引失败 (可能已存在): %v", err)
+	}
+
+	// UserMembership 复合索引
+	// 用于查询用户会员状态
+	if err := db.Exec("CREATE INDEX IF NOT EXISTS idx_user_memberships_user_tier_active ON user_memberships(user_id, membership_tier_id, is_active)").Error; err != nil {
+		log.Printf("警告: 创建索引失败 (可能已存在): %v", err)
+	}
+
+	// UserMembership 过期时间索引
+	// 用于查询过期会员
+	if err := db.Exec("CREATE INDEX IF NOT EXISTS idx_user_memberships_expires_active ON user_memberships(expires_at, is_active)").Error; err != nil {
+		log.Printf("警告: 创建索引失败 (可能已存在): %v", err)
+	}
+
+	// ExternalModel 类型索引
+	// 用于按类型查询模型
+	if err := db.Exec("CREATE INDEX IF NOT EXISTS idx_external_models_type_active ON external_models(model_type, is_active)").Error; err != nil {
 		log.Printf("警告: 创建索引失败 (可能已存在): %v", err)
 	}
 
@@ -135,4 +199,67 @@ func (db *DB) Close() error {
 		return err
 	}
 	return sqlDB.Close()
+}
+
+// queryStartTimeKey 用于在 context 中存储查询开始时间
+type queryStartTimeKey struct{}
+
+// registerQueryCallbacks 注册查询性能监控回调
+func registerQueryCallbacks(db *gorm.DB) {
+	// 记录查询开始时间
+	db.Callback().Query().Before("gorm:query").Register("query:start_time", func(db *gorm.DB) {
+		db.InstanceSet("query:start_time", time.Now())
+	})
+
+	// 记录慢查询
+	db.Callback().Query().After("gorm:query").Register("query:log_slow", func(db *gorm.DB) {
+		if startTime, ok := db.InstanceGet("query:start_time"); ok {
+			if start, ok := startTime.(time.Time); ok {
+				elapsed := time.Since(start)
+				// 记录超过 100ms 的查询
+				if elapsed > 100*time.Millisecond {
+					log.Printf("⚠️  Slow query detected: %v took %v", db.Statement.SQL.String(), elapsed)
+				}
+			}
+		}
+	})
+
+	// 记录创建开始时间
+	db.Callback().Create().Before("gorm:create").Register("create:start_time", func(db *gorm.DB) {
+		db.InstanceSet("create:start_time", time.Now())
+	})
+
+	// 记录慢创建
+	db.Callback().Create().After("gorm:create").Register("create:log_slow", func(db *gorm.DB) {
+		if startTime, ok := db.InstanceGet("create:start_time"); ok {
+			if start, ok := startTime.(time.Time); ok {
+				elapsed := time.Since(start)
+				if elapsed > 100*time.Millisecond {
+					log.Printf("⚠️  Slow create detected: %v took %v", db.Statement.SQL.String(), elapsed)
+				}
+			}
+		}
+	})
+
+	// 记录更新开始时间
+	db.Callback().Update().Before("gorm:update").Register("update:start_time", func(db *gorm.DB) {
+		db.InstanceSet("update:start_time", time.Now())
+	})
+
+	// 记录慢更新
+	db.Callback().Update().After("gorm:update").Register("update:log_slow", func(db *gorm.DB) {
+		if startTime, ok := db.InstanceGet("update:start_time"); ok {
+			if start, ok := startTime.(time.Time); ok {
+				elapsed := time.Since(start)
+				if elapsed > 100*time.Millisecond {
+					log.Printf("⚠️  Slow update detected: %v took %v", db.Statement.SQL.String(), elapsed)
+				}
+			}
+		}
+	})
+}
+
+// WithContext 创建带 context 的 DB 实例
+func (db *DB) WithContext(ctx context.Context) *gorm.DB {
+	return db.DB.WithContext(ctx)
 }

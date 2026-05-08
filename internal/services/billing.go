@@ -142,6 +142,38 @@ func (bs *BillingService) GetBillDetails(ctx context.Context, billID, userID str
 	return &bill, nil
 }
 
+// GetBillByPeriod 获取指定时期的账单（优化版，解决 N+1 问题）
+func (bs *BillingService) GetBillByPeriod(ctx context.Context, userID, period string) (*models.Bill, error) {
+	var bill models.Bill
+	if err := bs.db.WithContext(ctx).Where("user_id = ? AND period = ?", userID, period).First(&bill).Error; err != nil {
+		return nil, fmt.Errorf("bill not found: %w", err)
+	}
+
+	// 一次性查询所有明细，避免 N+1
+	var items []models.BillItem
+	if err := bs.db.WithContext(ctx).Where("bill_id = ?", bill.ID).Find(&items).Error; err != nil {
+		return nil, fmt.Errorf("failed to load bill items: %w", err)
+	}
+
+	// 转换为 BillModelDetail
+	details := make([]models.BillModelDetail, len(items))
+	for i, item := range items {
+		details[i] = models.BillModelDetail{
+			ModelID:       item.ModelID,
+			RequestCount:  item.RequestCount,
+			InputTokens:   item.InputTokens,
+			OutputTokens:  item.OutputTokens,
+			TotalTokens:   item.TotalTokens,
+			TotalCost:     item.TotalCost,
+			TotalRevenue:  item.TotalRevenue,
+			TotalProfit:   item.TotalProfit,
+		}
+	}
+	bill.Items = details
+
+	return &bill, nil
+}
+
 // ExportBillAsPDF 导出账单为 PDF (per D-18: 总结性 PDF)
 func (bs *BillingService) ExportBillAsPDF(ctx context.Context, billID string) ([]byte, error) {
 	bill, err := bs.getBillByID(ctx, billID)

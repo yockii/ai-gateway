@@ -186,6 +186,25 @@ func (g *Gateway) GetApp() *fiber.App {
 	return g.app
 }
 
+// GetDB 获取数据库连接
+func (g *Gateway) GetDB() *database.DB {
+	return g.db
+}
+
+// GetModels 获取对外模型列表（优化版，只查询必要字段）
+func (g *Gateway) GetModels(ctx context.Context) ([]models.ExternalModel, error) {
+	var models []models.ExternalModel
+	// 只查询必要字段，使用索引
+	err := g.db.WithContext(ctx).
+		Select("id", "name", "display_name", "model_type").
+		Where("is_active = ?", true).
+		Find(&models).Error
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch models: %w", err)
+	}
+	return models, nil
+}
+
 // Helper functions
 
 func convertMessages(msgs []api.ChatMessage) []services.ChatMessage {

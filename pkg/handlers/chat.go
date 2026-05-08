@@ -25,6 +25,11 @@ func New(gw *gateway.Gateway) *Handler {
 	}
 }
 
+// SetGateway 设置网关（用于依赖注入）
+func (h *Handler) SetGateway(gw *gateway.Gateway) {
+	h.gateway = gw
+}
+
 // ChatCompletions 聊天完成接口
 func (h *Handler) ChatCompletions(c fiber.Ctx) error {
 	// 获取用户 ID
@@ -85,28 +90,39 @@ func (h *Handler) Completions(c fiber.Ctx) error {
 	})
 }
 
-// ListModels 列出可用模型
+// ListModels 列出可用模型（优化版，只查询必要字段）
 func (h *Handler) ListModels(c fiber.Ctx) error {
-	// TODO: 从数据库查询可用模型
-	models := &api.ModelsResponse{
-		Object: "list",
-		Data: []api.ModelInfo{
-			{
-				ID:      "gpt-3.5-turbo",
-				Object:  "model",
-				Created: 1677610602,
-				OwnedBy: "openai",
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// 从数据库查询可用模型（使用优化的查询）
+	models, err := h.gateway.GetModels(ctx)
+	if err != nil {
+		log.Printf("获取模型列表失败: %v", err)
+		return c.Status(fiber.StatusInternalServerError).JSON(api.ErrorResponse{
+			Error: api.ErrorDetail{
+				Message: "Failed to fetch models",
+				Type:    "api_error",
+				Code:    fiber.StatusInternalServerError,
 			},
-			{
-				ID:      "gpt-4",
-				Object:  "model",
-				Created: 1687882410,
-				OwnedBy: "openai",
-			},
-		},
+		})
 	}
 
-	return c.JSON(models)
+	// 转换为 API 响应格式
+	data := make([]api.ModelInfo, len(models))
+	for i, model := range models {
+		data[i] = api.ModelInfo{
+			ID:      model.Name,
+			Object:  "model",
+			Created: model.CreatedAt.Unix(),
+			OwnedBy: "ai-gateway",
+		}
+	}
+
+	return c.JSON(&api.ModelsResponse{
+		Object: "list",
+		Data:   data,
+	})
 }
 
 // GetUsage 获取使用记录
