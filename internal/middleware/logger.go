@@ -9,7 +9,7 @@ import (
 
 // Logger 请求日志中间件
 func Logger() fiber.Handler {
-	return func(c *fiber.Ctx) error {
+	return func(c fiber.Ctx) error {
 		start := time.Now()
 
 		// 处理请求

@@ -10,7 +10,7 @@ import (
 
 // ErrorHandler 错误处理中间件
 func ErrorHandler() fiber.Handler {
-	return func(c *fiber.Ctx) error {
+	return func(c fiber.Ctx) error {
 		// 处理请求
 		err := c.Next()
 
@@ -44,7 +44,7 @@ func ErrorHandler() fiber.Handler {
 
 // Recovery 恢复中间件，捕获 panic
 func Recovery() fiber.Handler {
-	return func(c *fiber.Ctx) error {
+	return func(c fiber.Ctx) error {
 		defer func() {
 			if r := recover(); r != nil {
 				err, ok := r.(error)

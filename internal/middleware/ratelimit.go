@@ -42,7 +42,7 @@ func NewRateLimiter(maxRequestsPerMinute int) *RateLimiter {
 
 // RateLimit 限流中间件
 func (rl *RateLimiter) RateLimit() fiber.Handler {
-	return func(c *fiber.Ctx) error {
+	return func(c fiber.Ctx) error {
 		userID := GetUserID(c)
 		if userID == "" {
 			// 如果没有用户 ID，跳过限流检查

@@ -17,7 +17,7 @@ const (
 
 // Auth 认证中间件
 func Auth() fiber.Handler {
-	return func(c *fiber.Ctx) error {
+	return func(c fiber.Ctx) error {
 		// 获取 API Key
 		apiKey := c.Get(HeaderAPIKey)
 
@@ -84,7 +84,7 @@ func extractUserIDFromAPIKey(apiKey string) string {
 }
 
 // GetUserID 从上下文获取用户 ID
-func GetUserID(c *fiber.Ctx) string {
+func GetUserID(c fiber.Ctx) string {
 	userID, _ := c.Locals("user_id").(string)
 	return userID
 }
