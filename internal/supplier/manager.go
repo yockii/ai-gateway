@@ -181,7 +181,7 @@ func (m *Manager) GetHealthySuppliers(ctx context.Context) ([]*models.Supplier, 
 	}
 
 	// 过滤出健康的供应商
-	var healthySuppliers []*models.Suppliers
+	var healthySuppliers []*models.Supplier
 	for _, supplier := range suppliers {
 		if m.IsHealthy(supplier.ID) {
 			healthySuppliers = append(healthySuppliers, supplier)
