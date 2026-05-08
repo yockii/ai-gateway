@@ -1,0 +1,81 @@
+import { createRouter, createWebHistory } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
+
+const router = createRouter({
+  history: createWebHistory(import.meta.env.BASE_URL),
+  routes: [
+    {
+      path: '/login',
+      name: 'Login',
+      component: () => import('@/views/Login.vue'),
+      meta: { requiresAuth: false },
+    },
+    {
+      path: '/register',
+      name: 'Register',
+      component: () => import('@/views/Register.vue'),
+      meta: { requiresAuth: false },
+    },
+    {
+      path: '/',
+      component: () => import('@/components/layout/Layout.vue'),
+      meta: { requiresAuth: true },
+      children: [
+        {
+          path: '',
+          redirect: '/dashboard',
+        },
+        {
+          path: 'dashboard',
+          name: 'Dashboard',
+          component: () => import('@/views/Dashboard.vue'),
+        },
+        {
+          path: 'api-keys',
+          name: 'ApiKeys',
+          component: () => import('@/views/ApiKeys.vue'),
+        },
+        {
+          path: 'usage',
+          name: 'Usage',
+          component: () => import('@/views/Usage.vue'),
+        },
+        {
+          path: 'bills',
+          name: 'Bills',
+          component: () => import('@/views/Bills.vue'),
+        },
+        {
+          path: 'settings',
+          name: 'Settings',
+          component: () => import('@/views/Settings.vue),
+        },
+        {
+          path: 'plans',
+          name: 'Plans',
+          component: () => import('@/views/Plans.vue'),
+        },
+      ],
+    },
+    {
+      path: '/:pathMatch(.*)*',
+      name: 'NotFound',
+      redirect: '/dashboard',
+    },
+  ],
+})
+
+// 路由守卫
+router.beforeEach((to, from, next) => {
+  const authStore = useAuthStore()
+
+  if (to.meta.requiresAuth && !authStore.isAuthenticated) {
+    next({ name: 'Login', query: { redirect: to.fullPath } })
+  } else if ((to.name === 'Login' || to.name === 'Register') && authStore.isAuthenticated) {
+    next({ name: 'Dashboard' })
+  } else {
+    next()
+  }
+})
+
+export default router
