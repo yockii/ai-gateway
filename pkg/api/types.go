@@ -165,3 +165,34 @@ type Word struct {
 	Start float64 `json:"start"`
 	End   float64 `json:"end"`
 }
+
+// ========== Embeddings API Types ==========
+
+// EmbeddingRequest 嵌入请求
+type EmbeddingRequest struct {
+	Model          string   `json:"model"`
+	Input          []string `json:"input"`           // Can be string or array of strings
+	EncodingFormat string   `json:"encoding_format,omitempty"` // float, base64
+	Dimensions     int      `json:"dimensions,omitempty"`
+}
+
+// EmbeddingResponse 嵌入响应
+type EmbeddingResponse struct {
+	Object string          `json:"object"`
+	Data   []EmbeddingItem `json:"data"`
+	Model  string          `json:"model"`
+	Usage  EmbeddingUsage  `json:"usage"`
+}
+
+// EmbeddingItem 嵌入项
+type EmbeddingItem struct {
+	Object    string    `json:"object"`
+	Embedding []float64 `json:"embedding"`
+	Index     int       `json:"index"`
+}
+
+// EmbeddingUsage 嵌入使用量
+type EmbeddingUsage struct {
+	PromptTokens int `json:"prompt_tokens"`
+	TotalTokens  int `json:"total_tokens"`
+}

@@ -267,3 +267,41 @@ func (g *Gateway) TextToSpeech(ctx context.Context, userID string, req *api.Spee
 	// 当前返回模拟音频数据
 	return []byte("mock-audio-data"), nil
 }
+
+// CreateEmbedding 创建嵌入向量接口 (per D-03: OpenAI 兼容)
+func (g *Gateway) CreateEmbedding(ctx context.Context, userID string, req *api.EmbeddingRequest) (*api.EmbeddingResponse, error) {
+	requestID := xid.New().String()
+
+	log.Printf("嵌入生成请求: 用户=%s 模型=%s RequestID=%s inputs=%d",
+		userID, req.Model, requestID, len(req.Input))
+
+	// 选择最优路由
+	route, err := g.SelectBestRoute(ctx, userID, req.Model)
+	if err != nil {
+		return nil, fmt.Errorf("failed to select route: %w", err)
+	}
+
+	log.Printf("选择路由: 供应商=%s 模型=%s",
+		route.SupplierName, route.ActualModelName)
+
+	// TODO: 调用 Bifrost 实现嵌入生成
+	// 当前返回模拟响应
+	embeddings := make([]api.EmbeddingItem, len(req.Input))
+	for i := range req.Input {
+		embeddings[i] = api.EmbeddingItem{
+			Object:    "embedding",
+			Embedding: make([]float64, 1536), // OpenAI text-embedding-ada-002 dimension
+			Index:     i,
+		}
+	}
+
+	return &api.EmbeddingResponse{
+		Object: "list",
+		Data:   embeddings,
+		Model:  req.Model,
+		Usage: api.EmbeddingUsage{
+			PromptTokens: len(req.Input) * 10, // 估算
+			TotalTokens:  len(req.Input) * 10,
+		},
+	}, nil
+}
