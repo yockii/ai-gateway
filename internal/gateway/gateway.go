@@ -201,7 +201,7 @@ func (g *Gateway) RecordUsage(ctx context.Context, record *models.UsageRecord) e
 	logging.Info("使用量记录",
 		zap.String("user_id", record.UserID),
 		zap.String("model_id", record.ModelID),
-		zap.Int("total_tokens", record.TotalTokens),
+		zap.Int32("total_tokens", record.TotalTokens),
 		zap.Float64("cost_price", record.CostPrice),
 	)
 
