@@ -1,0 +1,61 @@
+# AI Gateway Development Environment Configuration
+# Extends base configuration with development-specific overrides
+
+version: '3.8'
+
+services:
+  # Override ai-gateway for development
+  ai-gateway:
+    build:
+      context: ../../
+      dockerfile: Dockerfile
+      target: builder
+    image: ai-gateway:dev
+    container_name: ai-gateway-app-dev
+    environment:
+      LOG_LEVEL: debug
+      LOG_FORMAT: text
+      ENABLE_METRICS: "true"
+    ports:
+      - "8080:8080"    # API port
+      - "2345:2345"    # Delve debug port
+    volumes:
+      # Mount source code for hot reload
+      - ../../:/src
+      - ../../data:/app/data
+    command: []
+    restart: "no"
+    # Remove resource limits for development
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  # PostgreSQL with development overrides
+  postgres:
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_HOST_AUTH_METHOD: trust
+    volumes:
+      - postgres_data_dev:/var/lib/postgresql/data
+      # Mount init scripts for development
+      - ../../database/init:/docker-entrypoint-initdb.d
+
+  # Redis with development overrides
+  redis:
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data_dev:/data
+
+volumes:
+  postgres_data_dev:
+    driver: local
+  redis_data_dev:
+    driver: local

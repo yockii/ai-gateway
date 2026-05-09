@@ -1,0 +1,156 @@
+# AI Gateway Production Environment Configuration
+# Extends base configuration with production-specific overrides
+# Supports blue-green deployment pattern
+
+version: '3.8'
+
+services:
+  # Blue deployment - Active or standby
+  ai-gateway-blue:
+    image: ${DOCKER_REGISTRY:-ai-gateway}:${IMAGE_TAG_BLUE:-latest}
+    container_name: ai-gateway-app-blue
+    environment:
+      LOG_LEVEL: warn
+      LOG_FORMAT: json
+      ENABLE_METRICS: "true"
+      DEPLOYMENT_COLOR: blue
+    ports:
+      - "8081:8080"
+      - "9091:9090"
+    deploy:
+      mode: replicated
+      replicas: 3
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1G
+        reservations:
+          cpus: '1'
+          memory: 512M
+      restart_policy:
+        condition: any
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 30s
+    networks:
+      - ai-gateway-network
+    restart: always
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+      - CHOWN
+      - SETGID
+      - SETUID
+
+  # Green deployment - Active or standby
+  ai-gateway-green:
+    image: ${DOCKER_REGISTRY:-ai-gateway}:${IMAGE_TAG_GREEN:-latest}
+    container_name: ai-gateway-app-green
+    environment:
+      LOG_LEVEL: warn
+      LOG_FORMAT: json
+      ENABLE_METRICS: "true"
+      DEPLOYMENT_COLOR: green
+    ports:
+      - "8082:8080"
+      - "9092:9090"
+    deploy:
+      mode: replicated
+      replicas: 3
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1G
+        reservations:
+          cpus: '1'
+          memory: 512M
+      restart_policy:
+        condition: any
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 30s
+    networks:
+      - ai-gateway-network
+    restart: always
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+      - CHOWN
+      - SETGID
+      - SETUID
+
+  # Nginx reverse proxy with blue-green support
+  nginx:
+    image: nginx:alpine
+    container_name: ai-gateway-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ../../nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ../../nginx/conf.d:/etc/nginx/conf.d:ro
+      - ${SSL_CERT_PATH:-./certs/fullchain.pem}:/etc/nginx/certs/fullchain.pem:ro
+      - ${SSL_KEY_PATH:-./certs/privkey.pem}:/etc/nginx/certs/privkey.pem:ro
+      - nginx_logs:/var/log/nginx
+    depends_on:
+      - ai-gateway-blue
+      - ai-gateway-green
+    networks:
+      - ai-gateway-network
+    restart: always
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+      - CHOWN
+      - SETGID
+      - SETUID
+
+  # Certbot for SSL certificate management
+  certbot:
+    image: certbot/certbot:latest
+    container_name: ai-gateway-certbot
+    volumes:
+      - ./certs:/etc/letsencrypt
+      - ./certbot-webroot:/var/www/certbot
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+    networks:
+      - ai-gateway-network
+
+volumes:
+  nginx_logs:
+    driver: local
+
+# Traffic routing is managed by nginx upstream configuration
+# Default active deployment is set via DEPLOYMENT_COLOR environment variable
