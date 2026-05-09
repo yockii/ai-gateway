@@ -18,8 +18,8 @@ RUN go mod download
 # 复制源代码
 COPY . .
 
-# 构建应用
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o ai-gateway ./cmd/ai-gateway
+# 构建应用（静态链接，去除调试信息减小体积）
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -trimpath -o ai-gateway ./cmd/ai-gateway
 
 # 阶段 2: 运行阶段
 FROM alpine:latest
