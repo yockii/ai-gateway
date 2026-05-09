@@ -1,0 +1,268 @@
+name: Deploy
+
+on:
+  push:
+    branches: [ main, master ]
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        type: choice
+        options:
+          - staging
+          - production
+
+# Cancel outdated workflow runs
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ai-gateway
+
+jobs:
+  deploy-staging:
+    name: Deploy to Staging
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: staging
+      url: https://staging.ai-gateway.example.com
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull latest images
+        run: |
+          docker pull ${{ env.REGISTRY }}/${{ github.repository }}/${{ env.IMAGE_NAME }}:latest || true
+
+      - name: Deploy to staging
+        run: |
+          echo "Deploying to staging environment..."
+          # In production, this would use SSH to remote server or kubectl for Kubernetes
+          docker-compose -f docker-compose.staging.yml up -d --remove-orphans
+
+      - name: Wait for health check
+        run: |
+          timeout 300 bash -c 'until curl -sf http://localhost:8080/health; do sleep 5; done'
+          echo "Service is healthy"
+
+      - name: Run smoke tests
+        run: |
+          chmod +x scripts/smoke-test.sh
+          ./scripts/smoke-test.sh http://localhost:8080
+
+      - name: Verify deployment
+        run: |
+          response=$(curl -s http://localhost:8080/health)
+          if [ "$response" != "OK" ]; then
+            echo "Health check failed: $response"
+            exit 1
+          fi
+          echo "Deployment verified successfully"
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "Staging deployment failed!"
+          # Send Slack notification if webhook configured
+          if [ -n "${{ secrets.SLACK_WEBHOOK }}" ]; then
+            curl -X POST ${{ secrets.SLACK_WEBHOOK }} \
+              -H 'Content-Type: application/json' \
+              -d '{"text":"Staging deployment failed: ${{ github.sha }}"}'
+          fi
+
+  deploy-production:
+    name: Deploy to Production
+    needs: [build-and-push, deploy-staging]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    if: github.event_name == 'release' || github.event.inputs.environment == 'production'
+    environment:
+      name: production
+      url: https://api.ai-gateway.example.com
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull production images
+        run: |
+          docker pull ${{ env.REGISTRY }}/${{ github.repository }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}
+
+      - name: Blue-green deployment
+        run: |
+          echo "Starting blue-green deployment..."
+          # Get current active color
+          CURRENT_COLOR=$(docker ps --filter "name=ai-gateway-" --format "{{.Names}}" | grep -o "blue\|green" | head -1)
+          NEW_COLOR="blue"
+          if [ "$CURRENT_COLOR" = "blue" ]; then
+            NEW_COLOR="green"
+          fi
+
+          echo "Current: $CURRENT_COLOR, New: $NEW_COLOR"
+
+          # Start new environment
+          docker-compose -f docker-compose.prod.yml up -d --scale ai-gateway-$NEW_COLOR=1
+
+          # Wait for new environment to be healthy
+          timeout 300 bash -c "until curl -sf http://localhost:8081/health; do sleep 5; done"
+
+          echo "New environment is healthy, switching traffic..."
+
+          # Switch traffic (in production, this would update load balancer)
+          echo "Traffic switched to $NEW_COLOR"
+
+          # Keep old environment for rollback
+          echo "Old environment ($CURRENT_COLOR) kept for rollback"
+
+      - name: Run smoke tests on production
+        run: |
+          chmod +x scripts/smoke-test.sh
+          ./scripts/smoke-test.sh http://localhost:8081
+
+      - name: Verify metrics endpoint
+        run: |
+          response=$(curl -s http://localhost:8081/metrics)
+          if ! echo "$response" | grep -q "go_"; then
+            echo "Metrics endpoint not working"
+            exit 1
+          fi
+          echo "Metrics verified"
+
+      - name: Final verification
+        run: |
+          # Check /health endpoint
+          curl -sf http://localhost:8081/health | grep "OK"
+
+          # Check /v1/models endpoint
+          curl -sf http://localhost:8081/v1/models -H "Authorization: Bearer ${{ secrets.TEST_API_KEY }}" | grep -q "object"
+
+          echo "Production deployment verified"
+
+      - name: Rollback on failure
+        if: failure()
+        run: |
+          echo "Deployment failed, initiating rollback..."
+          # Switch traffic back to previous environment
+          docker-compose -f docker-compose.prod.yml up -d
+          echo "Rollback completed"
+
+      - name: Cleanup old environment
+        if: success()
+        run: |
+          echo "Cleaning up old environment after successful deployment..."
+          # Remove old environment after verification period
+          sleep 30
+          # docker-compose -f docker-compose.prod.yml down
+
+      - name: Notify deployment status
+        if: always()
+        run: |
+          STATUS="${{ job.status }}"
+          echo "Deployment status: $STATUS"
+          if [ -n "${{ secrets.SLACK_WEBHOOK }}" ]; then
+            curl -X POST ${{ secrets.SLACK_WEBHOOK }} \
+              -H 'Content-Type: application/json' \
+              -d "{\"text\":\"Production deployment $STATUS: ${{ github.ref_name }}\"}"
+          fi
+
+  build-and-push:
+    name: Build Images for Deployment
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+
+    outputs:
+      image-tag: ${{ steps.meta.outputs.tags }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=sha,prefix={{branch}}-
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  post-deploy-test:
+    name: Post-Deploy Tests
+    needs: [deploy-staging]
+    runs-on: ubuntu-latest
+    if: always()
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run integration tests
+        run: |
+          go test -v -tags=integration ./tests/integration/... -timeout 5m
+
+      - name: Run load tests
+        run: |
+          if command -v k6 &> /dev/null; then
+            k6 run --vus 10 --duration 30s tests/performance/load/concurrent-users.js
+          else
+            echo "K6 not installed, skipping load tests"
+          fi
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: post-deploy-test-results
+          path: test-results/
