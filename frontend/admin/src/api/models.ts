@@ -1,4 +1,5 @@
 import client from './client'
+import type { ExternalModel } from '@/types/models'
 
 export interface CreateModelRequest {
   name: string

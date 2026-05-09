@@ -3,8 +3,8 @@
 # 阶段 1: 构建阶段
 FROM golang:1.26.2-alpine AS builder
 
-# 安装构建依赖
-RUN apk add --no-cache git
+# 配置 Alpine 使用国内镜像（加速包下载）
+RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories
 
 # 设置工作目录
 WORKDIR /build
@@ -24,8 +24,8 @@ RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o ai-gateway ./cmd/
 # 阶段 2: 运行阶段
 FROM alpine:latest
 
-# 安装 ca-certificates（用于 HTTPS 请求）
-RUN apk --no-cache add ca-certificates tzdata
+# 安装运行时依赖
+RUN apk --no-cache add ca-certificates tzdata wget
 
 # 设置时区
 ENV TZ=Asia/Shanghai

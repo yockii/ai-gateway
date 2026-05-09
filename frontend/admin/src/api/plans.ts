@@ -1,4 +1,5 @@
 import client from './client'
+import type { MembershipTier } from '@/types/models'
 
 export interface CreateTierRequest {
   name: string

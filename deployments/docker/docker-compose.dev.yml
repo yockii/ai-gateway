@@ -9,22 +9,33 @@ services:
     build:
       context: ../../
       dockerfile: Dockerfile
-      target: builder
+      args:
+        GOPROXY: https://goproxy.cn,direct
     image: ai-gateway:dev
     container_name: ai-gateway-app-dev
     environment:
       LOG_LEVEL: debug
       LOG_FORMAT: text
       ENABLE_METRICS: "true"
+      # Database configuration
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_NAME: ai_gateway
+      # Redis configuration
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      # Server configuration
+      SERVER_HOST: 0.0.0.0
+      SERVER_PORT: 8080
     ports:
       - "8080:8080"    # API port
       - "2345:2345"    # Delve debug port
     volumes:
-      # Mount source code for hot reload
-      - ../../:/src
+      # Mount data directory for persistence
       - ../../data:/app/data
-    command: []
-    restart: "no"
+    restart: unless-stopped
     # Remove resource limits for development
     deploy:
       resources:

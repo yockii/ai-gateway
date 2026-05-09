@@ -1,8 +1,9 @@
-import axios, type { AxiosError, type InternalAxiosRequestConfig, type AxiosResponse } from 'axios'
+import axios from 'axios'
+import type { AxiosError, InternalAxiosRequestConfig, AxiosResponse } from 'axios'
 
 const baseURL = import.meta.env.VITE_API_BASE_URL || '/v1/admin'
 
-const client = axios.create({
+const rawClient = axios.create({
   baseURL,
   timeout: 30000,
   headers: {
@@ -10,7 +11,7 @@ const client = axios.create({
   },
 })
 
-client.interceptors.request.use(
+rawClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     const token = localStorage.getItem('admin_token')
     if (token && config.headers) {
@@ -21,7 +22,7 @@ client.interceptors.request.use(
   (error) => Promise.reject(error)
 )
 
-client.interceptors.response.use(
+rawClient.interceptors.response.use(
   (response: AxiosResponse) => response.data,
   (error: AxiosError) => {
     if (error.response?.status === 401) {
@@ -32,5 +33,13 @@ client.interceptors.response.use(
     return Promise.reject(error.response?.data || { message: error.message })
   }
 )
+
+const client = {
+  get: <T>(url: string, config?: any) => rawClient.get<any, T>(url, config),
+  post: <T>(url: string, data?: any, config?: any) => rawClient.post<any, T>(url, data, config),
+  put: <T>(url: string, data?: any, config?: any) => rawClient.put<any, T>(url, data, config),
+  delete: <T>(url: string, config?: any) => rawClient.delete<any, T>(url, config),
+  patch: <T>(url: string, data?: any, config?: any) => rawClient.patch<any, T>(url, data, config),
+}
 
 export default client

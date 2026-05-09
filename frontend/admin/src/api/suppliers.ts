@@ -1,4 +1,5 @@
 import client from './client'
+import type { Supplier } from '@/types/models'
 
 export interface CreateSupplierRequest {
   name: string

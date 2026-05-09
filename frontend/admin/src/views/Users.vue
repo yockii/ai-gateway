@@ -2,7 +2,7 @@
 import { ref, onMounted } from 'vue'
 import { usersApi } from '@/api/users'
 import type { User } from '@/types/models'
-import { Search, Eye, Edit2, Ban, Check } from 'lucide-vue-next'
+import { Search, Eye, Ban, Check } from 'lucide-vue-next'
 
 const users = ref<User[]>([])
 const loading = ref(false)

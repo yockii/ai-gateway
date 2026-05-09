@@ -86,7 +86,7 @@ const deleteTier = async (tier: MembershipTier) => {
           </tr>
         </thead>
         <tbody class="divide-y divide-slate-200">
-          <tr v-for="tier in tiers.sort((a, b) => a.level - b.level)" :key="tier.id" class="hover:bg-slate-50">
+          <tr v-for="tier in tiers.sort((a: any, b: any) => a.level - b.level)" :key="tier.id" class="hover:bg-slate-50">
             <td class="px-6 py-4 text-sm text-slate-900">{{ tier.display_name }}</td>
             <td class="px-6 py-4 text-sm text-slate-600 font-mono">{{ tier.name }}</td>
             <td class="px-6 py-4 text-sm text-slate-600">Lv.{{ tier.level }}</td>

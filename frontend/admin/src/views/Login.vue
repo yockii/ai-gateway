@@ -23,7 +23,7 @@ const handleLogin = async () => {
   error.value = ''
   const result = schema.safeParse({ email: email.value, password: password.value })
   if (!result.success) {
-    error.value = result.error.errors[0].message
+    error.value = result.error.issues[0].message
     return
   }
 

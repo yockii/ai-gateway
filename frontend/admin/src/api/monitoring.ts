@@ -1,4 +1,5 @@
 import client from './client'
+import type { SystemMetrics, Alert } from '@/types/models'
 
 export const monitoringApi = {
   getMetrics: () => client.get<SystemMetrics>('/monitoring/metrics'),

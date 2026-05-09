@@ -1,4 +1,5 @@
 import client from './client'
+import type { AdminUser } from '@/types/models'
 
 export interface AdminLoginRequest {
   email: string
