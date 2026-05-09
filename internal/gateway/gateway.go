@@ -8,11 +8,14 @@ import (
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/rs/xid"
+	"github.com/yockii/ai-gateway/internal/cache"
 	"github.com/yockii/ai-gateway/internal/config"
 	"github.com/yockii/ai-gateway/internal/database"
+	"github.com/yockii/ai-gateway/internal/logging"
 	"github.com/yockii/ai-gateway/internal/models"
 	"github.com/yockii/ai-gateway/internal/services"
 	"github.com/yockii/ai-gateway/pkg/api"
+	"go.uber.org/zap"
 )
 
 // Gateway AI Gateway 核心结构
@@ -22,6 +25,7 @@ type Gateway struct {
 	db         *database.DB
 	bifrost    *services.BifrostClient
 	keyManager *services.KeyManager
+	redis      *cache.RedisClient
 }
 
 // New 创建新的 Gateway 实例
@@ -44,10 +48,27 @@ func New(cfg *config.Config) (*Gateway, error) {
 		return nil, fmt.Errorf("failed to initialize key manager: %w", err)
 	}
 
+	// 初始化 Redis 客户端 (per UAT-003)
+	redisClient := cache.NewRedisClient(
+		cfg.Redis.Addr,
+		cfg.Redis.Password,
+		cfg.Redis.DB,
+		cfg.Redis.PoolSize,
+	)
+
+	// 测试 Redis 连接
+	ctx := context.Background()
+	if err := redisClient.Ping(ctx); err != nil {
+		log.Printf("警告: Redis 连接失败: %v", err)
+		// 继续运行，缓存功能将不可用
+	} else {
+		log.Println("✅ Redis 连接成功")
+	}
+
 	// 初始化 Bifrost 客户端 (per D-01: 库集成模式)
 	bifrost, err := services.NewBifrostClient(cfg)
 	if err != nil {
-		log.Printf("警告: Bifrost 初始化失败: %v", err)
+		logging.Warn("Bifrost 初始化失败", zap.Error(err))
 		// 继续运行，Bifrost 功能将不可用
 		bifrost = nil
 	}
@@ -58,9 +79,10 @@ func New(cfg *config.Config) (*Gateway, error) {
 		db:         db,
 		bifrost:    bifrost,
 		keyManager: keyManager,
+		redis:      redisClient,
 	}
 
-	log.Println("✅ Gateway 初始化成功")
+	logging.Info("Gateway 初始化成功")
 	return gateway, nil
 }
 
@@ -84,8 +106,12 @@ func (g *Gateway) ChatCompletion(ctx context.Context, userID string, req *api.Ch
 	// 生成唯一请求 ID (per D-08: 幂等性)
 	requestID := xid.New().String()
 
-	log.Printf("聊天完成请求: 用户=%s 模型=%s RequestID=%s stream=%v",
-		userID, req.Model, requestID, req.Stream)
+	logging.Info("聊天完成请求",
+		zap.String("user_id", userID),
+		zap.String("model", req.Model),
+		zap.String("request_id", requestID),
+		zap.Bool("stream", req.Stream),
+	)
 
 	// 选择最优路由 (per D-05: 协同故障转移)
 	route, err := g.SelectBestRoute(ctx, userID, req.Model)
@@ -93,8 +119,10 @@ func (g *Gateway) ChatCompletion(ctx context.Context, userID string, req *api.Ch
 		return nil, fmt.Errorf("failed to select route: %w", err)
 	}
 
-	log.Printf("选择路由: 供应商=%s 模型=%s",
-		route.SupplierName, route.ActualModelName)
+	logging.Info("选择路由",
+		zap.String("supplier", route.SupplierName),
+		zap.String("model", route.ActualModelName),
+	)
 
 	// 转换请求格式
 	bifrostReq := &services.ChatCompletionRequest{
@@ -170,8 +198,12 @@ func (g *Gateway) RecordUsage(ctx context.Context, record *models.UsageRecord) e
 	// 2. 异步写入数据库
 	// 3. 使用 RequestID 作为幂等键
 
-	log.Printf("使用量记录: 用户=%s 模型=%s tokens=%d 成本=%.4f",
-		record.UserID, record.ModelID, record.TotalTokens, record.CostPrice)
+	logging.Info("使用量记录",
+		zap.String("user_id", record.UserID),
+		zap.String("model_id", record.ModelID),
+		zap.Int("total_tokens", record.TotalTokens),
+		zap.Float64("cost_price", record.CostPrice),
+	)
 
 	return nil
 }
@@ -189,6 +221,11 @@ func (g *Gateway) GetApp() *fiber.App {
 // GetDB 获取数据库连接
 func (g *Gateway) GetDB() *database.DB {
 	return g.db
+}
+
+// GetRedis 获取 Redis 客户端 (per UAT-003)
+func (g *Gateway) GetRedis() *cache.RedisClient {
+	return g.redis
 }
 
 // GetModels 获取对外模型列表（优化版，只查询必要字段）
@@ -242,8 +279,11 @@ func convertUsage(usage services.Usage) api.Usage {
 func (g *Gateway) ImageGeneration(ctx context.Context, userID string, req *api.ImageRequest) (*api.ImageResponse, error) {
 	requestID := xid.New().String()
 
-	log.Printf("图片生成请求: 用户=%s 模型=%s RequestID=%s",
-		userID, req.Model, requestID)
+	logging.Info("图片生成请求",
+		zap.String("user_id", userID),
+		zap.String("model", req.Model),
+		zap.String("request_id", requestID),
+	)
 
 	// 选择最优路由
 	route, err := g.SelectBestRoute(ctx, userID, req.Model)
@@ -251,8 +291,10 @@ func (g *Gateway) ImageGeneration(ctx context.Context, userID string, req *api.I
 		return nil, fmt.Errorf("failed to select route: %w", err)
 	}
 
-	log.Printf("选择路由: 供应商=%s 模型=%s",
-		route.SupplierName, route.ActualModelName)
+	logging.Info("选择路由",
+		zap.String("supplier", route.SupplierName),
+		zap.String("model", route.ActualModelName),
+	)
 
 	// TODO: 调用 Bifrost 实现图片生成
 	// 当前返回模拟响应
@@ -270,8 +312,11 @@ func (g *Gateway) ImageGeneration(ctx context.Context, userID string, req *api.I
 func (g *Gateway) TextToSpeech(ctx context.Context, userID string, req *api.SpeechRequest) ([]byte, error) {
 	requestID := xid.New().String()
 
-	log.Printf("语音合成请求: 用户=%s 模型=%s RequestID=%s",
-		userID, req.Model, requestID)
+	logging.Info("语音合成请求",
+		zap.String("user_id", userID),
+		zap.String("model", req.Model),
+		zap.String("request_id", requestID),
+	)
 
 	// 选择最优路由
 	route, err := g.SelectBestRoute(ctx, userID, req.Model)
@@ -279,8 +324,10 @@ func (g *Gateway) TextToSpeech(ctx context.Context, userID string, req *api.Spee
 		return nil, fmt.Errorf("failed to select route: %w", err)
 	}
 
-	log.Printf("选择路由: 供应商=%s 模型=%s",
-		route.SupplierName, route.ActualModelName)
+	logging.Info("选择路由",
+		zap.String("supplier", route.SupplierName),
+		zap.String("model", route.ActualModelName),
+	)
 
 	// TODO: 调用 Bifrost 实现语音合成
 	// 当前返回模拟音频数据
@@ -291,8 +338,12 @@ func (g *Gateway) TextToSpeech(ctx context.Context, userID string, req *api.Spee
 func (g *Gateway) CreateEmbedding(ctx context.Context, userID string, req *api.EmbeddingRequest) (*api.EmbeddingResponse, error) {
 	requestID := xid.New().String()
 
-	log.Printf("嵌入生成请求: 用户=%s 模型=%s RequestID=%s inputs=%d",
-		userID, req.Model, requestID, len(req.Input))
+	logging.Info("嵌入生成请求",
+		zap.String("user_id", userID),
+		zap.String("model", req.Model),
+		zap.String("request_id", requestID),
+		zap.Int("inputs_count", len(req.Input)),
+	)
 
 	// 选择最优路由
 	route, err := g.SelectBestRoute(ctx, userID, req.Model)
@@ -300,8 +351,10 @@ func (g *Gateway) CreateEmbedding(ctx context.Context, userID string, req *api.E
 		return nil, fmt.Errorf("failed to select route: %w", err)
 	}
 
-	log.Printf("选择路由: 供应商=%s 模型=%s",
-		route.SupplierName, route.ActualModelName)
+	logging.Info("选择路由",
+		zap.String("supplier", route.SupplierName),
+		zap.String("model", route.ActualModelName),
+	)
 
 	// TODO: 调用 Bifrost 实现嵌入生成
 	// 当前返回模拟响应

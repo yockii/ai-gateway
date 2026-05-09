@@ -1,6 +1,8 @@
 package router
 
 import (
+	"time"
+
 	"github.com/gofiber/fiber/v3"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/yockii/ai-gateway/internal/gateway"
@@ -60,7 +62,8 @@ func Setup(app *fiber.App, gw *gateway.Gateway) {
 	v1.Post("/embeddings", handler.CreateEmbedding)
 
 	// ========== Models API ==========
-	v1.Get("/models", handler.ListModels)
+	// 缓存模型列表 (per UAT-003: 30分钟缓存)
+	v1.Get("/models", middleware.CacheMiddleware(gw.GetRedis(), 30*time.Minute), handler.ListModels)
 
 	// ========== User Management ==========
 	v1.Get("/usage", handler.GetUsage)
@@ -75,13 +78,13 @@ func Setup(app *fiber.App, gw *gateway.Gateway) {
 	admin.Post("/models", handler.CreateModel)
 	admin.Put("/models/:id", handler.UpdateModel)
 	admin.Delete("/models/:id", handler.DeleteModel)
-	admin.Get("/models", handler.AdminListModels)
+	admin.Get("/models", middleware.CacheMiddleware(gw.GetRedis(), 15*time.Minute), handler.AdminListModels)
 
 	// Supplier management
 	admin.Post("/suppliers", handler.CreateSupplier)
 	admin.Put("/suppliers/:id", handler.UpdateSupplier)
 	admin.Delete("/suppliers/:id", handler.DeleteSupplier)
-	admin.Get("/suppliers", handler.ListSuppliers)
+	admin.Get("/suppliers", middleware.CacheMiddleware(gw.GetRedis(), 15*time.Minute), handler.ListSuppliers)
 
 	// ========== Monitoring API (per 03-04) ==========
 	// Note: Monitoring endpoints should be accessible to admin users
