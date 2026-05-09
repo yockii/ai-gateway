@@ -2,7 +2,7 @@
 import { ref, onMounted } from 'vue'
 import { keysApi } from '@/api/keys'
 import type { UserAPIKey } from '@/types/models'
-import { Plus, Trash2, Power, Eye, EyeOff, Copy, Check } from 'lucide-vue-next'
+import { Plus, Trash2, Power, EyeOff, Copy, Check } from 'lucide-vue-next'
 
 const keys = ref<UserAPIKey[]>([])
 const loading = ref(false)
@@ -29,10 +29,6 @@ const fetchKeys = async () => {
   } finally {
     loading.value = false
   }
-}
-
-const maskKey = (key: string) => {
-  return `sk-${key.slice(2, 10)}...`
 }
 
 const openCreateDialog = () => {

@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
-import { authApi } from '@/api/auth'
 import { z } from 'zod'
 
 const authStore = useAuthStore()
@@ -45,7 +44,7 @@ const updateProfile = async () => {
   const result = profileSchema.safeParse({ name: name.value, email: email.value })
 
   if (!result.success) {
-    message.value = result.error.errors[0].message
+    message.value = result.error.issues[0].message
     return
   }
 
@@ -72,7 +71,7 @@ const changePassword = async () => {
   })
 
   if (!result.success) {
-    message.value = result.error.errors[0].message
+    message.value = result.error.issues[0].message
     return
   }
 

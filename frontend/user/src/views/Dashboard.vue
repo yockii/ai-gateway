@@ -1,12 +1,10 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { usageApi } from '@/api/usage'
 import type { DashboardStats } from '@/types/api'
 import { KeyRound, FileText, TrendingUp, DollarSign } from 'lucide-vue-next'
 
-const router = useRouter()
 const authStore = useAuthStore()
 
 const stats = ref<DashboardStats>({

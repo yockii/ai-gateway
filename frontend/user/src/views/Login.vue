@@ -34,7 +34,7 @@ const handleLogin = async () => {
   })
 
   if (!result.success) {
-    error.value = result.error.errors[0].message
+    error.value = result.error.issues[0].message
     return
   }
 

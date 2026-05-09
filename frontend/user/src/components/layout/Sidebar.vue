@@ -9,7 +9,6 @@ import {
   FileText,
   Settings,
   CreditCard,
-  X,
 } from 'lucide-vue-next'
 
 const layoutStore = useLayoutStore()

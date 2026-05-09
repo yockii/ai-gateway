@@ -1,3 +1,5 @@
+import type { User, UserAPIKey, UsageRecord } from './models'
+
 export interface ApiResponse<T> {
   data: T
   message?: string

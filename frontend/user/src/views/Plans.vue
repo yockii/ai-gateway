@@ -29,7 +29,7 @@ const fetchData = async () => {
 const subscribe = async (planId: string) => {
   subscribing.value = planId
   try {
-    const result = await plansApi.subscribe(planId, selectedInterval.value)
+    await plansApi.subscribe(planId, selectedInterval.value)
     // TODO: 处理 Stripe 支付
     alert('支付功能待实现')
   } catch (err: any) {
