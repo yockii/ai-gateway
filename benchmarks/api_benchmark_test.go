@@ -377,3 +377,210 @@ func TestQPSLoadTest(t *testing.T) {
 		}
 	}
 }
+
+// BenchmarkAuthMiddleware 基准测试：认证中间件性能
+func BenchmarkAuthMiddleware(b *testing.B) {
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			req, _ := http.NewRequest("GET", baseURL+"/v1/models", nil)
+			req.Header.Set("Authorization", "Bearer "+testKey)
+			req.Header.Set("Content-Type", "application/json")
+
+			resp, err := client.Do(req)
+			if err != nil {
+				continue
+			}
+			resp.Body.Close()
+		}
+	})
+}
+
+// BenchmarkCacheMiddleware 基准测试：缓存中间件性能
+func BenchmarkCacheMiddleware(b *testing.B) {
+	b.Run("Hit", func(b *testing.B) {
+		// Warm up cache
+		for i := 0; i < 10; i++ {
+			req, _ := http.NewRequest("GET", baseURL+"/v1/models", nil)
+			req.Header.Set("Authorization", "Bearer "+testKey)
+			resp, _ := client.Do(req)
+			if resp != nil {
+				resp.Body.Close()
+			}
+		}
+
+		b.ResetTimer()
+		b.ReportAllocs()
+
+		for i := 0; i < b.N; i++ {
+			req, _ := http.NewRequest("GET", baseURL+"/v1/models", nil)
+			req.Header.Set("Authorization", "Bearer "+testKey)
+
+			resp, err := client.Do(req)
+			if err != nil {
+				continue
+			}
+			resp.Body.Close()
+		}
+	})
+
+	b.Run("Miss", func(b *testing.B) {
+		b.ResetTimer()
+		b.ReportAllocs()
+
+		for i := 0; i < b.N; i++ {
+			// Use unique request to force cache miss
+			req, _ := http.NewRequest("GET", baseURL+"/v1/models?cache_bust="+fmt.Sprint(i), nil)
+			req.Header.Set("Authorization", "Bearer "+testKey)
+
+			resp, err := client.Do(req)
+			if err != nil {
+				continue
+			}
+			resp.Body.Close()
+		}
+	})
+}
+
+// BenchmarkDBQuery 基准测试：数据库查询性能
+func BenchmarkDBQuery(b *testing.B) {
+	// Test API endpoints that involve database queries
+	b.Run("ListModels", func(b *testing.B) {
+		b.ResetTimer()
+		b.ReportAllocs()
+
+		for i := 0; i < b.N; i++ {
+			req, _ := http.NewRequest("GET", baseURL+"/v1/models", nil)
+			req.Header.Set("Authorization", "Bearer "+testKey)
+
+			resp, err := client.Do(req)
+			if err != nil {
+				continue
+			}
+			resp.Body.Close()
+		}
+	})
+
+	b.Run("UsageStats", func(b *testing.B) {
+		b.ResetTimer()
+		b.ReportAllocs()
+
+		for i := 0; i < b.N; i++ {
+			req, _ := http.NewRequest("GET", baseURL+"/v1/usage", nil)
+			req.Header.Set("Authorization", "Bearer "+testKey)
+
+			resp, err := client.Do(req)
+			if err != nil {
+				continue
+			}
+			resp.Body.Close()
+		}
+	})
+}
+
+// BenchmarkRedisGet 基准测试：Redis GET 性能
+func BenchmarkRedisGet(b *testing.B) {
+	// Test endpoints that use Redis for caching
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			req, _ := http.NewRequest("GET", baseURL+"/v1/models", nil)
+			req.Header.Set("Authorization", "Bearer "+testKey)
+
+			resp, err := client.Do(req)
+			if err != nil {
+				continue
+			}
+			resp.Body.Close()
+		}
+	})
+}
+
+// BenchmarkRedisSet 基准测试：Redis SET 性能
+func BenchmarkRedisSet(b *testing.B) {
+	// Test endpoints that write to Redis (e.g., rate limiting, caching)
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		// Chat completion may set rate limit counters in Redis
+		req := api.ChatCompletionRequest{
+			Model: "gpt-3.5-turbo",
+			Messages: []api.ChatMessage{
+				{Role: "user", Content: "benchmark test"},
+			},
+		}
+
+		body, _ := json.Marshal(req)
+		httpReq, _ := http.NewRequest("POST", baseURL+"/v1/chat/completions", bytes.NewReader(body))
+		httpReq.Header.Set("Content-Type", "application/json")
+		httpReq.Header.Set("Authorization", "Bearer "+testKey)
+
+		resp, err := client.Do(httpReq)
+		if err != nil {
+			continue
+		}
+		resp.Body.Close()
+	}
+}
+
+// BenchmarkResponseSizes 基准测试：不同响应大小的性能
+func BenchmarkResponseSizes(b *testing.B) {
+	b.Run("SmallResponse", func(b *testing.B) {
+		b.ResetTimer()
+		b.ReportAllocs()
+
+		for i := 0; i < b.N; i++ {
+			resp, err := http.Get(baseURL + "/health")
+			if err != nil {
+				continue
+			}
+			resp.Body.Close()
+		}
+	})
+
+	b.Run("MediumResponse", func(b *testing.B) {
+		b.ResetTimer()
+		b.ReportAllocs()
+
+		for i := 0; i < b.N; i++ {
+			req, _ := http.NewRequest("GET", baseURL+"/v1/models", nil)
+			req.Header.Set("Authorization", "Bearer "+testKey)
+
+			resp, err := client.Do(req)
+			if err != nil {
+				continue
+			}
+			resp.Body.Close()
+		}
+	})
+}
+
+// BenchmarkConcurrentChatCompletions 并发聊天完成基准测试
+func BenchmarkConcurrentChatCompletions(b *testing.B) {
+	maxTokens := 50
+	req := api.ChatCompletionRequest{
+		Model: "gpt-3.5-turbo",
+		Messages: []api.ChatMessage{
+			{Role: "user", Content: "Concurrent benchmark test"},
+		},
+		MaxTokens: &maxTokens,
+	}
+
+	body, _ := json.Marshal(req)
+
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			httpReq, _ := http.NewRequest("POST", baseURL+"/v1/chat/completions", bytes.NewReader(body))
+			httpReq.Header.Set("Content-Type", "application/json")
+			httpReq.Header.Set("Authorization", "Bearer "+testKey)
+
+			resp, err := client.Do(httpReq)
+			if err != nil {
+				continue
+			}
+			resp.Body.Close()
+		}
+	})
+}

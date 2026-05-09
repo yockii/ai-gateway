@@ -1,59 +1,118 @@
-#!/bin/bash
-set -e
+#!/usr/bin/env bash
+set -euo pipefail
 
 echo "======================================"
 echo "  AI Gateway Performance Benchmark"
 echo "======================================"
 echo ""
 
-# 检查服务器是否运行
-echo "Checking if server is running..."
-if ! curl -s http://localhost:8080/health > /dev/null 2>&1; then
-    echo "Server is not running. Starting server..."
+# Configuration
+BASE_URL="${API_BASE_URL:-http://localhost:8080}"
+BENCHMARK_DIR="benchmarks/results"
+SERVER_PID=""
+REGRESSION_THRESHOLD=10  # Percentage
 
-    # 检查是否有 main.go
-    if [ -f "cmd/main.go" ]; then
-        go run cmd/main.go &
-        SERVER_PID=$!
-        echo "Server started with PID: $SERVER_PID"
+# Create results directory
+mkdir -p "$BENCHMARK_DIR"
 
-        # 等待服务器启动
-        echo "Waiting for server to be ready..."
-        for i in {1..30}; do
-            if curl -s http://localhost:8080/health > /dev/null 2>&1; then
-                echo "Server is ready!"
-                break
-            fi
-            if [ $i -eq 30 ]; then
-                echo "Server failed to start within 30 seconds"
-                exit 1
-            fi
-            sleep 1
-        done
+# Check server is running
+check_server() {
+    echo "Checking if server is running at $BASE_URL..."
+    if ! curl -sf "$BASE_URL/health" > /dev/null 2>&1; then
+        echo "Server is not running. Starting server..."
+
+        if [ -f "cmd/ai-gateway/main.go" ]; then
+            go run cmd/ai-gateway/main.go &
+            SERVER_PID=$!
+            echo "Server started with PID: $SERVER_PID"
+
+            # Wait for server to be ready
+            echo "Waiting for server to be ready..."
+            for i in {1..60}; do
+                if curl -sf "$BASE_URL/health" > /dev/null 2>&1; then
+                    echo "Server is ready!"
+                    return 0
+                fi
+                if [ $i -eq 60 ]; then
+                    echo "Server failed to start within 60 seconds"
+                    exit 1
+                fi
+                sleep 1
+            done
+        else
+            echo "Error: cmd/ai-gateway/main.go not found. Please start the server manually."
+            exit 1
+        fi
     else
-        echo "Error: cmd/main.go not found. Please start the server manually."
-        exit 1
+        echo "Server is already running"
     fi
-else
-    echo "Server is already running"
-    SERVER_PID=""
-fi
+}
 
-# 清理函数
+# Cleanup function
 cleanup() {
     if [ -n "$SERVER_PID" ]; then
         echo ""
         echo "Stopping server (PID: $SERVER_PID)..."
-        kill $SERVER_PID 2>/dev/null || true
-        wait $SERVER_PID 2>/dev/null || true
+        kill "$SERVER_PID" 2>/dev/null || true
+        wait "$SERVER_PID" 2>/dev/null || true
         echo "Server stopped"
     fi
 }
 trap cleanup EXIT
 
-# 创建结果目录
-mkdir -p benchmark-results
-cd benchmark-results
+# Run benchmark
+run_benchmark() {
+    local name=$1
+    local pattern=$2
+    local output_file="$BENCHMARK_DIR/${name}.txt"
+
+    echo ""
+    echo "Running: $name"
+    echo "----------------------------------------"
+    go test -bench="$pattern" -benchmem -benchtime=5s ./benchmarks/ | tee "$output_file"
+
+    # Check for regression
+    if [ -f "$BENCHMARK_DIR/${name}.baseline" ]; then
+        echo "Comparing against baseline..."
+        if ! diff -u "$BENCHMARK_DIR/${name}.baseline" "$output_file"; then
+            echo "WARNING: Results differ from baseline"
+        fi
+    fi
+}
+
+# Compare performance
+check_regression() {
+    local current=$1
+    local baseline=$2
+    local threshold=$3
+
+    if [ ! -f "$baseline" ]; then
+        echo "No baseline found, creating baseline..."
+        cp "$current" "$baseline"
+        return 0
+    fi
+
+    # Extract ns/op from current and baseline
+    local current_ns=$(grep -oP '\d+(?= ns/op)' "$current" | tail -1)
+    local baseline_ns=$(grep -oP '\d+(?= ns/op)' "$baseline" | tail -1)
+
+    if [ -n "$current_ns" ] && [ -n "$baseline_ns" ]; then
+        local diff=$((current_ns - baseline_ns))
+        local percent=$((diff * 100 / baseline_ns))
+
+        echo "Performance delta: $diff ns/op ($percent%)"
+
+        if [ "$percent" -gt "$threshold" ]; then
+            echo "ERROR: Performance regression detected! ($percent% > $threshold%)"
+            return 1
+        fi
+    fi
+
+    return 0
+}
+
+# Main execution
+check_server
 
 echo ""
 echo "======================================"
@@ -61,25 +120,17 @@ echo "  Running Go Benchmarks"
 echo "======================================"
 echo ""
 
-# 运行基准测试
-echo "1. Running ListModels benchmark..."
-go test -bench=BenchmarkListModels -benchmem -benchtime=5s ../benchmarks/ | tee listmodels.txt
-
-echo ""
-echo "2. Running HealthCheck benchmark..."
-go test -bench=BenchmarkHealthCheck -benchmem -benchtime=5s ../benchmarks/ | tee healthcheck.txt
-
-echo ""
-echo "3. Running Middleware benchmark..."
-go test -bench=BenchmarkMiddleware -benchmem -benchtime=5s ../benchmarks/ | tee middleware.txt
-
-echo ""
-echo "4. Running JSON serialization benchmark..."
-go test -bench=BenchmarkJSON -benchmem -benchtime=5s ../benchmarks/ | tee json.txt
-
-echo ""
-echo "5. Running concurrent benchmark..."
-go test -bench=BenchmarkConcurrent -benchmem -benchtime=5s ../benchmarks/ | tee concurrent.txt
+# Run all benchmarks
+run_benchmark "listmodels" "BenchmarkListModels"
+run_benchmark "healthcheck" "BenchmarkHealthCheck"
+run_benchmark "middleware" "BenchmarkMiddleware"
+run_benchmark "auth" "BenchmarkAuthMiddleware"
+run_benchmark "cache" "BenchmarkCacheMiddleware"
+run_benchmark "dbquery" "BenchmarkDBQuery"
+run_benchmark "redis" "BenchmarkRedis"
+run_benchmark "json" "BenchmarkJSON"
+run_benchmark "concurrent" "BenchmarkConcurrent"
+run_benchmark "chat" "BenchmarkChatCompletions"
 
 echo ""
 echo "======================================"
@@ -87,9 +138,7 @@ echo "  Running Response Time Tests"
 echo "======================================"
 echo ""
 
-# 运行响应时间测试
-echo "Testing API response times..."
-go test -v -run=TestAPIResponseTime ../benchmarks/ 2>&1 | tee response-time.txt || true
+go test -v -run=TestAPIResponseTime ./benchmarks/ 2>&1 | tee "$BENCHMARK_DIR/response-time.txt"
 
 echo ""
 echo "======================================"
@@ -97,10 +146,9 @@ echo "  Running Load Test (if enabled)"
 echo "======================================"
 echo ""
 
-# 运行负载测试（仅在非短模式下）
-if [ -n "$RUN_LOAD_TEST" ]; then
+if [ -n "${RUN_LOAD_TEST:-}" ]; then
     echo "Running QPS load test..."
-    go test -v -run=TestQPSLoadTest ../benchmarks/ 2>&1 | tee loadtest.txt || true
+    go test -v -run=TestQPSLoadTest ./benchmarks/ 2>&1 | tee "$BENCHMARK_DIR/loadtest.txt"
 else
     echo "Skipping load test (set RUN_LOAD_TEST=1 to enable)"
 fi
@@ -111,75 +159,78 @@ echo "  Benchmark Complete"
 echo "======================================"
 echo ""
 
-# 生成摘要报告
-echo "Generating summary report..."
-cat > BENCHMARK_SUMMARY.md << EOF
+# Generate summary
+cat > "$BENCHMARK_DIR/SUMMARY.md" << EOF
 # AI Gateway Performance Benchmark Summary
 
-Generated: $(date)
+**Generated:** $(date)
+**Base URL:** $BASE_URL
 
 ## Benchmark Results
 
-### ListModels Endpoint
-- See \`listmodels.txt\` for detailed results
+| Benchmark | ns/op | B/op | allocs/op | Status |
+|-----------|-------|------|-----------|--------|
+EOF
 
-### HealthCheck Endpoint
-- See \`healthcheck.txt\` for detailed results
+# Extract results for summary table
+for file in "$BENCHMARK_DIR"/*.txt; do
+    if [ -f "$file" ] && [ "$file" != "${BENCHMARK_DIR}/SUMMARY.md" ]; then
+        name=$(basename "$file" .txt)
+        if grep -q "Benchmark" "$file" 2>/dev/null; then
+            stats=$(grep -E "Benchmark.*\d+\s+ns/op" "$file" | tail -1)
+            if [ -n "$stats" ]; then
+                echo "| $name | $stats |" >> "$BENCHMARK_DIR/SUMMARY.md"
+            fi
+        fi
+    fi
+done
 
-### Middleware Performance
-- See \`middleware.txt\` for detailed results
-
-### JSON Serialization
-- See \`json.txt\` for detailed results
-
-### Concurrent Requests
-- See \`concurrent.txt\` for detailed results
-
-### Response Time Tests
-- See \`response-time.txt\` for detailed results
-
-### Load Test
-- See \`loadtest.txt\` for detailed results (if enabled)
+cat >> "$BENCHMARK_DIR/SUMMARY.md" << 'EOF'
 
 ## Performance Targets
 
-- API Gateway Response Time: < 20ms (P95)
-- API Gateway QPS: 10000+
-- Concurrent Limit Check: < 1ms
-- Memory: Stable, no leaks
+- **API Gateway Response Time:** < 20ms (P95)
+- **API Gateway QPS:** 10000+
+- **Memory:** Stable, no leaks
+- **Regression Threshold:** 10%
 
 ## How to Run
 
 ### Quick Benchmark (5 seconds per test)
-\`\`\`bash
+```bash
 ./scripts/benchmark.sh
-\`\`\`
+```
 
 ### Full Load Test
-\`\`\`bash
+```bash
 RUN_LOAD_TEST=1 ./scripts/benchmark.sh
-\`\`\`
+```
 
 ### Specific Benchmark
-\`\`\`bash
+```bash
 go test -bench=BenchmarkListModels -benchmem ./benchmarks/
-\`\`\`
+```
 
-### Response Time Test
-\`\`\`bash
-go test -v -run=TestAPIResponseTime ./benchmarks/
-\`\`\`
+### Update Baseline
+```bash
+cp benchmarks/results/*.txt benchmarks/results/*.baseline
+```
 
 ## Notes
 
 - Benchmarks run against a local server on port 8080
 - The script will start the server if not running
-- Results are saved in \`benchmark-results/\` directory
+- Results are saved in \`benchmarks/results/\` directory
 - Load test is disabled by default (enable with RUN_LOAD_TEST=1)
 EOF
 
-echo "Results saved to: benchmark-results/"
-echo "  - Individual benchmark results"
-echo "  - BENCHMARK_SUMMARY.md"
+echo "Results saved to: $BENCHMARK_DIR/"
+echo "  - Individual benchmark results (*.txt)"
+echo "  - SUMMARY.md"
 echo ""
-echo "View summary: cat benchmark-results/BENCHMARK_SUMMARY.md"
+echo "View summary: cat $BENCHMARK_DIR/SUMMARY.md"
+
+# Exit with error if regression detected
+if ! check_regression "$BENCHMARK_DIR/listmodels.txt" "$BENCHMARK_DIR/listmodels.baseline" "$REGRESSION_THRESHOLD"; then
+    exit 1
+fi
