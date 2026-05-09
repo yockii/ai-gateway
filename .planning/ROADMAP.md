@@ -809,6 +809,32 @@ services:
 
 ---
 
+### Phase 4 执行计划
+
+**Status:** 📋 PLANNED (2026-05-09)
+
+**Plans:** 4 plans created
+
+**Wave Structure:**
+- **Wave 1:** 04-01 (Go Integration Testing Infrastructure)
+- **Wave 2:** 04-02 (Frontend Testing Infrastructure)
+- **Wave 3:** 04-03 (CI/CD Pipeline & Performance Testing)
+- **Wave 4:** 04-04 (Production Deployment Configuration)
+
+**Plan Details:**
+- [ ] `04-01-PLAN.md` — Go Integration Testing Infrastructure (6 个任务)
+- [x] `04-02-PLAN.md` — Frontend Testing Infrastructure (7 个任务)
+- [ ] `04-03-PLAN.md` — CI/CD Pipeline & Performance Testing (6 个任务)
+- [ ] `04-04-PLAN.md` — Production Deployment Configuration (8 个任务)
+
+**Plan Summaries:**
+- **04-01:** Testcontainers 集成、API 集成测试、数据库迁移测试、Makefile 测试目标
+- **04-02:** Vitest 单元测试配置、Playwright E2E 测试、MSW API Mock（用户端 + 运维端） ✅
+- **04-03:** K6 负载测试、GitHub Actions 工作流（test/build/deploy）、性能基准测试
+- **04-04:** Docker Compose 多环境配置、nginx 反向代理、蓝绿部署脚本、部署文档
+
+---
+
 ## 关键里程碑
 
 | 里程碑 | 时间 | 标志性成果 |
@@ -896,5 +922,5 @@ services:
 ---
 
 **路线图维护**: 根据项目进展每周更新
-**最后更新**: 2026-05-08
+**最后更新**: 2026-05-09
 **更新者**: 项目团队
