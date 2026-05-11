@@ -525,19 +525,20 @@ POST   /api/v1/admin/bills/generate  # 生成账单
 
 ## Phase 3: 高级功能和优化
 
+**状态**: ✅ COMPLETE (2026-05-11)
 **时间**: Week 11-14 (3-4 周)
 **目标**: 完善功能和优化性能
 
-### 3.1 用户端界面完善 (Week 11)
+### 3.1 用户端界面完善 (Week 11) ✅
 
 **任务**:
-- [ ] 实现用户注册登录页面
-- [ ] 实现控制台概览页面
-- [ ] 实现 API Key 管理页面
-- [ ] 实现使用统计页面
-- [ ] 实现账单查询页面
-- [ ] 实现个人设置页面
-- [ ] 实现套餐购买页面
+- [x] 实现用户注册登录页面
+- [x] 实现控制台概览页面
+- [x] 实现 API Key 管理页面
+- [x] 实现使用统计页面
+- [x] 实现账单查询页面
+- [x] 实现个人设置页面
+- [x] 实现套餐购买页面
 
 **页面列表**:
 - 登录/注册页面
@@ -924,3 +925,242 @@ services:
 **路线图维护**: 根据项目进展每周更新
 **最后更新**: 2026-05-09
 **更新者**: 项目团队
+
+---
+
+## Milestone 2: 核心功能补全
+
+**状态**: 🔄 进行中 (2026-05-11 开始)
+**目标**: 完善 Milestone 1 中缺失或不完整的核心功能
+
+### Phase 5: 定价体系完善 ✅
+
+**任务**:
+- [x] 实现大客户独立定价 (FR-M2-01.1)
+- [x] 实现套餐价格应用逻辑 (FR-M2-01.2)
+- [x] 完善利润保护机制
+- [x] 开发定价管理界面
+
+**API 设计**:
+```
+POST   /api/v1/admin/enterprise-pricing     # 创建大客户定价
+GET    /api/v1/admin/enterprise-pricing     # 获取定价列表
+PUT    /api/v1/admin/enterprise-pricing/:id # 更新定价
+DELETE /api/v1/admin/enterprise-pricing/:id # 删除定价
+GET    /api/v1/user/price                   # 获取用户适用价格
+```
+
+**产出**:
+- 大客户定价功能
+- 套餐价格应用逻辑
+- 定价管理界面
+
+**验收标准**:
+- [x] 大客户可设置独立价格
+- [x] 会员价格正确计算
+- [x] 利润保护机制有效
+
+---
+
+### Phase 6: 供应商管理增强 (Week 1-2)
+
+**任务**:
+- [ ] 实现供应商 API Key 管理 (FR-M2-02.1)
+- [ ] 实现供应商模型关联管理 (FR-M2-02.2)
+- [ ] 完善 API Key 加密存储
+- [ ] 实现密钥轮换策略
+
+**数据模型**:
+```go
+type SupplierApiKey struct {
+    ID           string
+    SupplierID   string
+    Name         string
+    KeyValueEncrypted string
+    Priority     int
+    IsPrimary    bool
+    IsActive     bool
+    CreatedAt    time.Time
+}
+```
+
+**产出**:
+- 供应商 API Key 管理功能
+- 密钥轮换机制
+- 供应商管理界面增强
+
+**验收标准**:
+- [ ] 密钥安全存储
+- [ ] 支持密钥轮换
+- [ ] 管理界面完整
+
+---
+
+### Phase 7: 用户 API Key 实现 (Week 2)
+
+**任务**:
+- [ ] 实现用户 API Key CRUD (FR-M2-03.1)
+- [ ] 实现 API Key 认证中间件 (FR-M2-03.2)
+- [ ] 实现 API Key 限流逻辑
+- [ ] 完善使用统计功能
+
+**API 设计**:
+```
+GET    /api/v1/user/keys                    # 获取列表
+POST   /api/v1/user/keys                    # 创建新 Key
+PUT    /api/v1/user/keys/:id                # 更新配置
+DELETE /api/v1/user/keys/:id                # 删除
+PATCH  /api/v1/user/keys/:id/disable        # 禁用
+PATCH  /api/v1/user/keys/:id/enable         # 启用
+GET    /api/v1/user/keys/:id/stats          # 使用统计
+```
+
+**产出**:
+- 用户 API Key 完整功能
+- 认证中间件
+- 限流功能
+
+**验收标准**:
+- [ ] 所有 API 正常工作
+- [ ] 认证正确有效
+- [ ] 限流机制工作
+
+---
+
+### Phase 8: 模型路由增强 (Week 2-3)
+
+**任务**:
+- [ ] 实现供应商健康检查 (FR-M2-04.1)
+- [ ] 实现故障自动转移 (FR-M2-04.2)
+- [ ] 完善路由决策逻辑
+- [ ] 实现路由性能监控
+
+**产出**:
+- 健康检查系统
+- 故障转移机制
+- 路由监控功能
+
+**验收标准**:
+- [ ] 故障检测时间 < 5 秒
+- [ ] 切换时间 < 1 秒
+- [ ] 监控数据准确
+
+---
+
+
+### Phase 9: 运维界面完善 (Week 3)
+
+**Status:** ✅ COMPLETE (2026-05-11)
+
+**Plan:** `.planning/phases/09-运维界面完善/09-01-PLAN.md`
+
+**Summary:** `.planning/phases/09-运维界面完善/09-01-SUMMARY.md`
+
+**Tasks:** 11 tasks completed
+
+**Task Breakdown:**
+- **09.1** — 创建审计日志后端模型和服务 (3h) ✅
+- **09.2** — 扩展前端 API 客户端和类型定义 (2h) ✅
+- **09.3** — 创建供应商管理组件 (4h) ✅
+- **09.4** — 完善供应商管理界面 (5h) ✅
+- **09.5** — 完善定价管理界面 (5h) ✅
+- **09.6** — 创建审计日志界面 (4h) ✅
+- **09.7** — 更新运维大屏和监控页面 (4h) ✅
+- **09.8** — 更新路由配置和导航 (2h) ✅
+- **09.9** — 集成审计日志记录 (3h) ✅
+- **09.10** — 实现健康状态 SSE 推送 (3h) ✅
+- **09.11** — 编写集成测试 (5h) ✅
+
+**Requirements Coverage:**
+- FR-M2-05.1: 供应商管理界面 ✅
+- FR-M2-05.2: 定价管理界面 ✅
+- EXTRA-AUDIT: 操作审计日志 ✅
+- EXTRA-HEALTH: 健康状态实时展示 ✅
+
+**Committed:**
+- 11 task commits + 1 summary commit
+
+---
+
+---
+
+## Milestone 2 执行计划
+
+**Status:** ✅ COMPLETE (2026-05-11)
+
+**Plans:** 5 phases completed
+
+**Wave Structure:**
+- **Wave 1:** Phase 5 (定价), Phase 6 (供应商) - ✅ 完成
+- **Wave 2:** Phase 7 (用户 API Key), Phase 8 (路由) - ✅ 完成
+- **Wave 3:** Phase 9 (运维界面) - ✅ 完成
+
+---
+
+## Milestone 2 关键里程碑
+
+| 里程碑 | 时间 | 标志性成果 |
+|--------|------|------------|
+| M2-1: 定价体系完成 | Week 1 | 大客户定价、套餐应用可用 |
+| M2-2: 供应商管理完成 | Week 2 | API Key 管理可用 |
+| M2-3: 用户 Key 完成 | Week 2 | 用户可管理 API Key |
+| M2-4: 路由增强完成 | Week 3 | 健康检查、故障转移可用 |
+| M2-5: 界面完善 | Week 3 | 运维界面完整 |
+
+---
+
+**路线图维护**: 根据项目进展每周更新
+**最后更新**: 2026-05-11
+**更新者**: Milestone 2 初始化
+
+---
+
+## Phase 5 执行计划
+
+**Status:** ✅ COMPLETED (2026-05-11)
+
+**Plan:** `.planning/phases/05-定价体系完善/PLAN.md`
+
+**Tasks:** 7 tasks, ~26 hours (3.5 days)
+
+**Task Breakdown:**
+- [x] **05.1** — 创建 EnterprisePricing 数据模型 (2h)
+- [x] **05.2** — 实现 EnterprisePricingService (4h)
+- [x] **05.3** — 实现统一 PricingService (6h)
+- [x] **05.4** — 创建 API 处理器 (4h)
+- [x] **05.5** — 更新路由配置 (1h)
+- [x] **05.6** — 开发运维端定价管理界面 (6h)
+- [x] **05.7** — 集成测试 (3h)
+
+**Verification:** ✅ Passed - PLAN-CHECK.md
+
+**Summary: .planning/phases/05-定价体系完善/SUMMARY.md
+
+---
+
+## Phase 6 执行计划
+
+**Status:** ✅ COMPLETE (2026-05-11)
+
+**Plan:** `.planning/phases/06-供应商管理增强/PLAN.md`
+**Summary:** `.planning/phases/06-供应商管理增强/SUMMARY.md`
+
+**Tasks:** 10 tasks, ~30 hours (5 days)
+
+**Task Breakdown:**
+- **06.1** — 创建加密服务 (3h)
+- **06.2** — 创建 SupplierApiKey 数据模型 (2h)
+- **06.3** — 实现 SupplierApiKeyService (5h)
+- **06.4** — 创建 API Key 处理器 (3h)
+- **06.5** — 更新路由配置 (1h)
+- **06.6** — 创建供应商模型关联服务 FR-M2-02.2 (4h)
+- **06.7** — 创建供应商模型关联 API (2h)
+- **06.8** — 更新路由添加模型关联 (1h)
+- **06.9** — 开发运维端供应商管理界面 (6h)
+- **06.10** — 集成测试 (3h)
+
+**Requirements Coverage:**
+- FR-M2-02.1: 供应商密钥存储 ✅
+- FR-M2-02.2: 供应商模型关联管理 ✅
+
+**Next Step:** `/gsd-execute-phase 6` to start execution
