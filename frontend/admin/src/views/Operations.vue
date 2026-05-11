@@ -111,7 +111,7 @@ const getMetricColor = (value: number, threshold: number) => {
 
       <div class="bg-slate-800 rounded-xl p-6 border border-slate-700">
         <p class="text-slate-400 text-sm mb-4">累计请求数</p>
-        <p class="text-5xl font-bold text-white">{{ metrics.total_requests.toLocaleString() }}</p>
+        <p class="text-5xl font-bold text-white">{{ (metrics.total_requests || 0).toLocaleString() }}</p>
       </div>
     </div>
   </div>

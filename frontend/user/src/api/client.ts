@@ -27,6 +27,11 @@ rawClient.interceptors.request.use(
 
 rawClient.interceptors.response.use(
   (response: AxiosResponse) => {
+    // 如果响应包含 data 字段，自动提取
+    const data = response.data as any
+    if (data && typeof data === 'object' && 'data' in data) {
+      return data.data
+    }
     return response.data
   },
   (error: AxiosError<ApiError>) => {

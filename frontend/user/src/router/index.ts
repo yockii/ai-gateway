@@ -4,6 +4,13 @@ import { useAuthStore } from '@/stores/auth'
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
+    // 首页/落地页（未登录）
+    {
+      path: '/',
+      name: 'Landing',
+      component: () => import('@/views/Landing.vue'),
+      meta: { requiresAuth: false },
+    },
     {
       path: '/login',
       name: 'Login',
@@ -16,14 +23,15 @@ const router = createRouter({
       component: () => import('@/views/Register.vue'),
       meta: { requiresAuth: false },
     },
+    // 用户后台（需要登录）
     {
-      path: '/',
+      path: '/app',
       component: () => import('@/components/layout/Layout.vue'),
       meta: { requiresAuth: true },
       children: [
         {
           path: '',
-          redirect: '/dashboard',
+          redirect: '/app/dashboard',
         },
         {
           path: 'dashboard',
@@ -60,7 +68,7 @@ const router = createRouter({
     {
       path: '/:pathMatch(.*)*',
       name: 'NotFound',
-      redirect: '/dashboard',
+      redirect: '/',
     },
   ],
 })
@@ -70,7 +78,7 @@ router.beforeEach((to, _from, next) => {
 
   if (to.meta.requiresAuth && !authStore.isAuthenticated) {
     next({ name: 'Login', query: { redirect: to.fullPath } })
-  } else if ((to.name === 'Login' || to.name === 'Register') && authStore.isAuthenticated) {
+  } else if ((to.name === 'Login' || to.name === 'Register' || to.name === 'Landing') && authStore.isAuthenticated) {
     next({ name: 'Dashboard' })
   } else {
     next()

@@ -2,10 +2,10 @@ export interface AdminUser {
   id: string
   email: string
   name: string
-  role: 'superadmin' | 'admin' | 'operator'
-  is_active: boolean
-  created_at: string
-  updated_at: string
+  role?: 'superadmin' | 'admin' | 'operator'
+  is_active?: boolean
+  created_at?: string
+  updated_at?: string
 }
 
 export interface User {

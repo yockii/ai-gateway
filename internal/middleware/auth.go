@@ -18,6 +18,12 @@ const (
 // Auth 认证中间件
 func Auth() fiber.Handler {
 	return func(c fiber.Ctx) error {
+		// 跳过管理员和用户 API 路径（这些路径有自己的认证中间件）
+		path := c.Path()
+		if strings.HasPrefix(path, "/v1/admin") || strings.HasPrefix(path, "/v1/user") {
+			return c.Next()
+		}
+
 		// 获取 API Key
 		apiKey := c.Get(HeaderAPIKey)
 

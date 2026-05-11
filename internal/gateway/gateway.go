@@ -42,6 +42,12 @@ func New(cfg *config.Config) (*Gateway, error) {
 		return nil, fmt.Errorf("failed to initialize database: %w", err)
 	}
 
+	// 初始化默认管理员（如果不存在）
+	if err := db.InitializeDefaultAdmin(); err != nil {
+		log.Printf("警告: 默认管理员初始化失败: %v", err)
+		// 继续运行，不影响服务启动
+	}
+
 	// 初始化 Key Manager
 	keyManager, err := services.NewKeyManager(db)
 	if err != nil {

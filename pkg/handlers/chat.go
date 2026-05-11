@@ -10,12 +10,15 @@ import (
 	"github.com/gofiber/fiber/v3"
 	"github.com/yockii/ai-gateway/internal/gateway"
 	"github.com/yockii/ai-gateway/internal/middleware"
+	"github.com/yockii/ai-gateway/internal/services"
 	"github.com/yockii/ai-gateway/pkg/api"
 )
 
 // Handler API 处理器
 type Handler struct {
-	gateway *gateway.Gateway
+	gateway      *gateway.Gateway
+	adminService *services.AdminService
+	userService  *services.UserService
 }
 
 // New 创建处理器
@@ -23,6 +26,16 @@ func New(gw *gateway.Gateway) *Handler {
 	return &Handler{
 		gateway: gw,
 	}
+}
+
+// SetAdminService 设置管理员服务
+func (h *Handler) SetAdminService(adminService *services.AdminService) {
+	h.adminService = adminService
+}
+
+// SetUserService 设置用户服务
+func (h *Handler) SetUserService(userService *services.UserService) {
+	h.userService = userService
 }
 
 // SetGateway 设置网关（用于依赖注入）
@@ -142,6 +155,20 @@ func (h *Handler) GetUsage(c fiber.Ctx) error {
 		"user_id": userID,
 		"days":    days,
 		"message": "Usage statistics not yet implemented",
+	})
+}
+
+// GetUsageStats 获取仪表板统计数据
+func (h *Handler) GetUsageStats(c fiber.Ctx) error {
+	_ = c.Locals("user_id").(string) // TODO: 使用 userID 获取用户特定数据
+
+	// TODO: 从数据库获取实际统计数据
+	// 返回模拟数据
+	return c.JSON(fiber.Map{
+		"total_keys":       3,
+		"monthly_requests": 12500,
+		"monthly_cost":     158.50,
+		"monthly_tokens":   2500000,
 	})
 }
 

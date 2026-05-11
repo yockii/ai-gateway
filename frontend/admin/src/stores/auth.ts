@@ -32,7 +32,12 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       const response = await authApi.login({ email, password }) as any
       setToken(response.token)
-      setAdmin(response.admin)
+      // 后端直接返回 admin_id, email, name 字段
+      setAdmin({
+        id: response.admin_id,
+        email: response.email,
+        name: response.name,
+      })
     } finally {
       loading.value = false
     }

@@ -15,12 +15,12 @@ const layoutStore = useLayoutStore()
 const route = useRoute()
 
 const navItems = computed(() => [
-  { name: '控制台概览', path: '/dashboard', icon: LayoutDashboard },
-  { name: 'API Key 管理', path: '/api-keys', icon: KeyRound },
-  { name: '使用统计', path: '/usage', icon: TrendingUp },
-  { name: '账单查询', path: '/bills', icon: FileText },
-  { name: '套餐购买', path: '/plans', icon: CreditCard },
-  { name: '个人设置', path: '/settings', icon: Settings },
+  { name: '控制台概览', path: '/app/dashboard', icon: LayoutDashboard },
+  { name: 'API Key 管理', path: '/app/api-keys', icon: KeyRound },
+  { name: '使用统计', path: '/app/usage', icon: TrendingUp },
+  { name: '账单查询', path: '/app/bills', icon: FileText },
+  { name: '套餐购买', path: '/app/plans', icon: CreditCard },
+  { name: '个人设置', path: '/app/settings', icon: Settings },
 ])
 
 const isActive = (path: string) => route.path === path

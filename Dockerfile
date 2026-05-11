@@ -1,10 +1,13 @@
 # 多阶段构建 Dockerfile
 
 # 阶段 1: 构建阶段
-FROM golang:1.26.2-alpine AS builder
+FROM golang:1.26-alpine AS builder
 
 # 配置 Alpine 使用国内镜像（加速包下载）
 RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories
+
+# 配置 Go 模块代理使用国内镜像
+ENV GOPROXY=https://goproxy.cn,direct
 
 # 设置工作目录
 WORKDIR /build
@@ -23,6 +26,9 @@ RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -trimpath -o ai-gateway .
 
 # 阶段 2: 运行阶段
 FROM alpine:latest
+
+# 配置 Alpine 使用国内镜像
+RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories
 
 # 安装运行时依赖
 RUN apk --no-cache add ca-certificates tzdata wget

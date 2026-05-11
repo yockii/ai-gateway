@@ -51,7 +51,7 @@ const handleRegister = async () => {
   loading.value = true
   try {
     await authStore.register(email.value, password.value, name.value)
-    router.push('/dashboard')
+    router.push('/app/dashboard')
   } catch (err: any) {
     error.value = err.message || '注册失败，请稍后重试'
   } finally {

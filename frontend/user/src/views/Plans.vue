@@ -17,8 +17,9 @@ onMounted(async () => {
 const fetchData = async () => {
   loading.value = true
   try {
-    plans.value = await plansApi.list()
-    currentMembership.value = await plansApi.getCurrent()
+    // client 拦截器已自动提取 data 字段
+    plans.value = await plansApi.list() as any
+    currentMembership.value = await plansApi.getCurrent() as any
   } catch (err) {
     console.error('Failed to fetch plans:', err)
   } finally {

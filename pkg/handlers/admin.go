@@ -11,18 +11,8 @@ import (
 )
 
 // CreateModel 创建对外模型 (管理员)
+// 权限验证由 RequireAdmin 中间件处理
 func (h *Handler) CreateModel(c fiber.Ctx) error {
-	// 验证管理员权限 (per FR-006)
-	if !h.isAdmin(c) {
-		return c.Status(fiber.StatusForbidden).JSON(api.ErrorResponse{
-			Error: api.ErrorDetail{
-				Message: "Admin access required",
-				Type:    "permission_error",
-				Code:    fiber.StatusForbidden,
-			},
-		})
-	}
-
 	var req api.CreateModelRequest
 	if err := c.Bind().Body(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(api.ErrorResponse{
@@ -62,17 +52,8 @@ func (h *Handler) CreateModel(c fiber.Ctx) error {
 }
 
 // UpdateModel 更新模型配置 (管理员)
+// 权限验证由 RequireAdmin 中间件处理
 func (h *Handler) UpdateModel(c fiber.Ctx) error {
-	if !h.isAdmin(c) {
-		return c.Status(fiber.StatusForbidden).JSON(api.ErrorResponse{
-			Error: api.ErrorDetail{
-				Message: "Admin access required",
-				Type:    "permission_error",
-				Code:    fiber.StatusForbidden,
-			},
-		})
-	}
-
 	modelID := c.Params("id")
 	if modelID == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(api.ErrorResponse{
@@ -107,17 +88,8 @@ func (h *Handler) UpdateModel(c fiber.Ctx) error {
 }
 
 // DeleteModel 删除模型 (管理员)
+// 权限验证由 RequireAdmin 中间件处理
 func (h *Handler) DeleteModel(c fiber.Ctx) error {
-	if !h.isAdmin(c) {
-		return c.Status(fiber.StatusForbidden).JSON(api.ErrorResponse{
-			Error: api.ErrorDetail{
-				Message: "Admin access required",
-				Type:    "permission_error",
-				Code:    fiber.StatusForbidden,
-			},
-		})
-	}
-
 	modelID := c.Params("id")
 	if modelID == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(api.ErrorResponse{
@@ -135,17 +107,8 @@ func (h *Handler) DeleteModel(c fiber.Ctx) error {
 }
 
 // AdminListModels 列出所有模型 (管理员视图)
+// 权限验证由 RequireAdmin 中间件处理
 func (h *Handler) AdminListModels(c fiber.Ctx) error {
-	if !h.isAdmin(c) {
-		return c.Status(fiber.StatusForbidden).JSON(api.ErrorResponse{
-			Error: api.ErrorDetail{
-				Message: "Admin access required",
-				Type:    "permission_error",
-				Code:    fiber.StatusForbidden,
-			},
-		})
-	}
-
 	// TODO: 查询数据库获取所有模型
 
 	return c.JSON(fiber.Map{
@@ -164,17 +127,8 @@ func (h *Handler) AdminListModels(c fiber.Ctx) error {
 }
 
 // CreateSupplier 创建供应商 (管理员)
+// 权限验证由 RequireAdmin 中间件处理
 func (h *Handler) CreateSupplier(c fiber.Ctx) error {
-	if !h.isAdmin(c) {
-		return c.Status(fiber.StatusForbidden).JSON(api.ErrorResponse{
-			Error: api.ErrorDetail{
-				Message: "Admin access required",
-				Type:    "permission_error",
-				Code:    fiber.StatusForbidden,
-			},
-		})
-	}
-
 	var req api.CreateSupplierRequest
 	if err := c.Bind().Body(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(api.ErrorResponse{
@@ -198,17 +152,8 @@ func (h *Handler) CreateSupplier(c fiber.Ctx) error {
 }
 
 // UpdateSupplier 更新供应商 (管理员)
+// 权限验证由 RequireAdmin 中间件处理
 func (h *Handler) UpdateSupplier(c fiber.Ctx) error {
-	if !h.isAdmin(c) {
-		return c.Status(fiber.StatusForbidden).JSON(api.ErrorResponse{
-			Error: api.ErrorDetail{
-				Message: "Admin access required",
-				Type:    "permission_error",
-				Code:    fiber.StatusForbidden,
-			},
-		})
-	}
-
 	supplierID := c.Params("id")
 	if supplierID == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(api.ErrorResponse{
@@ -220,7 +165,7 @@ func (h *Handler) UpdateSupplier(c fiber.Ctx) error {
 		})
 	}
 
-	var req api.UpdateSupplierRequest
+	var req api.UpdateModelRequest
 	if err := c.Bind().Body(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(api.ErrorResponse{
 			Error: api.ErrorDetail{
@@ -240,17 +185,8 @@ func (h *Handler) UpdateSupplier(c fiber.Ctx) error {
 }
 
 // DeleteSupplier 删除供应商 (管理员)
+// 权限验证由 RequireAdmin 中间件处理
 func (h *Handler) DeleteSupplier(c fiber.Ctx) error {
-	if !h.isAdmin(c) {
-		return c.Status(fiber.StatusForbidden).JSON(api.ErrorResponse{
-			Error: api.ErrorDetail{
-				Message: "Admin access required",
-				Type:    "permission_error",
-				Code:    fiber.StatusForbidden,
-			},
-		})
-	}
-
 	supplierID := c.Params("id")
 	if supplierID == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(api.ErrorResponse{
@@ -268,17 +204,8 @@ func (h *Handler) DeleteSupplier(c fiber.Ctx) error {
 }
 
 // ListSuppliers 列出所有供应商 (管理员)
+// 权限验证由 RequireAdmin 中间件处理
 func (h *Handler) ListSuppliers(c fiber.Ctx) error {
-	if !h.isAdmin(c) {
-		return c.Status(fiber.StatusForbidden).JSON(api.ErrorResponse{
-			Error: api.ErrorDetail{
-				Message: "Admin access required",
-				Type:    "permission_error",
-				Code:    fiber.StatusForbidden,
-			},
-		})
-	}
-
 	// TODO: 查询数据库获取所有供应商
 
 	return c.JSON(fiber.Map{
@@ -318,12 +245,4 @@ func (h *Handler) validateCreateModelRequest(req *api.CreateModelRequest) error 
 	}
 
 	return nil
-}
-
-// isAdmin 检查是否为管理员
-func (h *Handler) isAdmin(c fiber.Ctx) bool {
-	// TODO: 实现真实的管理员验证逻辑
-	// 当前简化实现：检查特定的 admin 头部或用户类型
-	role := c.Get("X-User-Role", "")
-	return role == "admin"
 }

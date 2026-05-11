@@ -17,7 +17,9 @@ onMounted(async () => {
 const fetchBills = async () => {
   loading.value = true
   try {
-    bills.value = await billsApi.list()
+    // client 拦截器已自动提取 data 字段
+    const response = await billsApi.list() as any
+    bills.value = response
   } catch (err) {
     console.error('Failed to fetch bills:', err)
   } finally {
@@ -27,7 +29,7 @@ const fetchBills = async () => {
 
 const viewDetail = async (bill: Bill) => {
   try {
-    selectedBill.value = await billsApi.getById(bill.id)
+    selectedBill.value = await billsApi.getById(bill.id) as any
     showDetailDialog.value = true
   } catch (err) {
     console.error('Failed to fetch bill detail:', err)

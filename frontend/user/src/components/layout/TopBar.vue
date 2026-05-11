@@ -1,13 +1,16 @@
 <script setup lang="ts">
+import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useLayoutStore } from '@/stores/layout'
 import { Menu, LogOut, User } from 'lucide-vue-next'
 
+const router = useRouter()
 const authStore = useAuthStore()
 const layoutStore = useLayoutStore()
 
 const handleLogout = async () => {
   await authStore.logout()
+  router.push('/')
 }
 </script>
 

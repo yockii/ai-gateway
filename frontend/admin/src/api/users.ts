@@ -7,13 +7,8 @@ export interface UserListParams {
   search?: string
 }
 
-export interface UserListResponse {
-  data: User[]
-  total: number
-}
-
 export const usersApi = {
-  list: (params: UserListParams) => client.get<UserListResponse>('/users', { params }),
+  list: (params: UserListParams) => client.get<User[]>('/users', { params }),
   getById: (id: string) => client.get<User>(`/users/${id}`),
   update: (id: string, data: Partial<User>) => client.put(`/users/${id}`, data),
   delete: (id: string) => client.delete(`/users/${id}`),

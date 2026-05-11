@@ -42,7 +42,7 @@ const handleLogin = async () => {
   try {
     await authStore.login(email.value, password.value)
     const redirect = route.query.redirect as string
-    router.push(redirect || '/dashboard')
+    router.push(redirect || '/app/dashboard')
   } catch (err: any) {
     error.value = err.message || '登录失败，请检查邮箱和密码'
   } finally {

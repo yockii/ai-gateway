@@ -30,7 +30,7 @@ const handleLogin = async () => {
   loading.value = true
   try {
     await authStore.login(email.value, password.value)
-    router.push('/admin/users')
+    router.push({ name: 'Users' })
   } catch (err: any) {
     error.value = err.message || '登录失败'
   } finally {

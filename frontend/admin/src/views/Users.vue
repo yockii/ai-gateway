@@ -17,8 +17,7 @@ onMounted(async () => {
 const fetchUsers = async () => {
   loading.value = true
   try {
-    const response = await usersApi.list({ search: searchQuery.value })
-    users.value = response.data
+    users.value = await usersApi.list({ search: searchQuery.value })
   } catch (err) {
     console.error('Failed to fetch users:', err)
   } finally {

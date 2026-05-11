@@ -6,6 +6,8 @@ import (
 	"log"
 	"time"
 
+	"github.com/rs/xid"
+	"github.com/yockii/ai-gateway/internal/auth"
 	"github.com/yockii/ai-gateway/internal/models"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -263,4 +265,50 @@ func registerQueryCallbacks(db *gorm.DB) {
 // WithContext 创建带 context 的 DB 实例
 func (db *DB) WithContext(ctx context.Context) *gorm.DB {
 	return db.DB.WithContext(ctx)
+}
+
+// InitializeDefaultAdmin 初始化默认管理员
+// 如果数据库中不存在任何管理员，则创建默认管理员
+func (db *DB) InitializeDefaultAdmin() error {
+	ctx := context.Background()
+
+	// 检查是否已有管理员
+	var count int64
+	if err := db.WithContext(ctx).Model(&models.Admin{}).Count(&count).Error; err != nil {
+		return fmt.Errorf("failed to check admin count: %w", err)
+	}
+
+	// 如果已有管理员，不创建默认管理员
+	if count > 0 {
+		log.Printf("数据库中已有 %d 个管理员，跳过默认管理员创建", count)
+		return nil
+	}
+
+	// 创建默认管理员
+	defaultPassword := "admin123456" // 默认密码，首次登录后应修改
+	hashedPassword, err := auth.HashPassword(defaultPassword)
+	if err != nil {
+		return fmt.Errorf("failed to hash default password: %w", err)
+	}
+
+	admin := &models.Admin{
+		ID:        xid.New().String(),
+		Email:     "admin@example.com",
+		Password:  hashedPassword,
+		Name:      "默认管理员",
+		IsActive:  true,
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+
+	if err := db.WithContext(ctx).Create(admin).Error; err != nil {
+		return fmt.Errorf("failed to create default admin: %w", err)
+	}
+
+	log.Println("⚠️  默认管理员已创建:")
+	log.Println("   邮箱: admin@example.com")
+	log.Println("   密码: admin123456")
+	log.Println("   ⚠️  请在生产环境中立即修改默认密码！")
+
+	return nil
 }

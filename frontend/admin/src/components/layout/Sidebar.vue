@@ -15,12 +15,12 @@ const layoutStore = useLayoutStore()
 const route = useRoute()
 
 const navItems = computed(() => [
-  { name: '用户管理', path: '/admin/users', icon: Users },
-  { name: '模型管理', path: '/admin/models', icon: Cpu },
-  { name: '供应商管理', path: '/admin/suppliers', icon: Truck },
-  { name: '套餐管理', path: '/admin/plans', icon: CreditCard },
-  { name: '系统监控', path: '/admin/monitoring', icon: Activity },
-  { name: '运维大屏', path: '/admin/operations', icon: BarChart3 },
+  { name: '用户管理', path: '/users', icon: Users },
+  { name: '模型管理', path: '/models', icon: Cpu },
+  { name: '供应商管理', path: '/suppliers', icon: Truck },
+  { name: '套餐管理', path: '/plans', icon: CreditCard },
+  { name: '系统监控', path: '/monitoring', icon: Activity },
+  { name: '运维大屏', path: '/operations', icon: BarChart3 },
 ])
 
 const isActive = (path: string) => route.path === path

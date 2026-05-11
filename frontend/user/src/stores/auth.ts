@@ -35,7 +35,15 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       const response = await authApi.login({ email, password }) as any
       setToken(response.token)
-      setUser(response.user)
+      setUser({
+        id: response.user_id,
+        email: response.email,
+        name: response.name,
+        user_group_id: '',
+        is_active: true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
       return response
     } finally {
       loading.value = false
@@ -46,8 +54,17 @@ export const useAuthStore = defineStore('auth', () => {
     loading.value = true
     try {
       const response = await authApi.register({ email, password, name }) as any
-      setToken(response.token)
-      setUser(response.user)
+      // 注册返回的数据不包含 token，需要手动构造
+      const userObj = {
+        id: response.id,
+        email: response.email,
+        name: response.name,
+        user_group_id: '',
+        is_active: response.is_active ?? true,
+        created_at: response.created_at ?? new Date().toISOString(),
+        updated_at: response.created_at ?? new Date().toISOString(),
+      }
+      setUser(userObj)
       return response
     } finally {
       loading.value = false
@@ -66,8 +83,16 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   const fetchProfile = async () => {
-    const userData = await authApi.profile()
-    setUser(userData)
+    const response = await authApi.profile() as any
+    setUser({
+      id: response.id,
+      email: response.email,
+      name: user.value?.name ?? 'User',
+      user_group_id: '',
+      is_active: true,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
   }
 
   return {

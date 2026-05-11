@@ -28,8 +28,9 @@ onMounted(async () => {
 const fetchData = async () => {
   loading.value = true
   try {
-    const response = await usageApi.list({ limit: 30 })
-    records.value = response.data
+    // client 拦截器已自动提取 data 字段，response 直接是数组
+    const response = await usageApi.list({ limit: 30 }) as any
+    records.value = response
 
     // 按日期聚合数据
     const dailyData = new Map<string, { requests: number; tokens: number; cost: number }>()
