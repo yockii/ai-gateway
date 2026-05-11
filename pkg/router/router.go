@@ -116,10 +116,15 @@ func Setup(app *fiber.App, gw *gateway.Gateway) {
 	admin.Get("/suppliers/:id/health/history", handler.GetHealthCheckHistory)
 	admin.Get("/events/failures", handler.GetSupplierFailureEvents)
 	admin.Get("/events/failovers", handler.GetFailoverEvents)
-		// Phase 9: 审计日志
-		admin.Get("/audit/logs", handler.ListAuditLogs)
-		admin.Get("/audit/logs/:id", handler.GetAuditLogDetail)
-		admin.Get("/audit/history", handler.GetEntityAuditHistory)
+
+	// Phase 9: SSE 健康状态推送
+	admin.Get("/suppliers/health/stream", handler.StreamHealthStatus)
+	admin.Get("/suppliers/:id/health/stream", handler.StreamSupplierHealth)
+
+	// Phase 9: 审计日志
+	admin.Get("/audit/logs", handler.ListAuditLogs)
+	admin.Get("/audit/logs/:id", handler.GetAuditLogDetail)
+	admin.Get("/audit/history", handler.GetEntityAuditHistory)
 	
 	monitoringHandler := handlers.NewMonitoringHandler("http://prometheus:9090")
 	admin.Get("/monitoring/metrics", monitoringHandler.GetSystemMetrics)
