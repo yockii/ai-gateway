@@ -320,3 +320,37 @@ func (db *DB) InitializeDefaultAdmin() error {
 
 	return nil
 }
+
+// NewTestDB 创建测试数据库实例（使用环境变量配置）
+func NewTestDB() (*DB, error) {
+	// 使用环境变量配置测试数据库
+	testDSN := BuildDSN(
+		"localhost",
+		"5432",
+		"test",
+		"test",
+		"ai_gateway_test",
+	)
+
+	config := &gorm.Config{
+		Logger: logger.Default.LogMode(logger.Silent),
+		NowFunc: func() time.Time {
+			return time.Now().UTC()
+		},
+		DisableForeignKeyConstraintWhenMigrating: true,
+	}
+
+	db, err := gorm.Open(postgres.Open(testDSN), config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to test database: %w", err)
+	}
+
+	database := &DB{DB: db}
+
+	// 测试数据库自动迁移
+	if err := database.AutoMigrate(); err != nil {
+		return nil, fmt.Errorf("failed to auto migrate test database: %w", err)
+	}
+
+	return database, nil
+}
