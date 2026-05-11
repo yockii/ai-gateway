@@ -71,6 +71,7 @@ func RequireAdmin(tokenManager *auth.TokenManager) fiber.Handler {
 		// 将管理员信息存储到上下文
 		c.Locals("admin_id", tokenInfo.UserID)
 		c.Locals("admin_email", tokenInfo.Email)
+		c.Locals("admin_name", tokenInfo.UserID) // 默认使用 ID，后续可从数据库获取 name
 
 		return c.Next()
 	}
