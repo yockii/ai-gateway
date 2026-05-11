@@ -93,6 +93,14 @@ func (db *DB) AutoMigrate() error {
 		&models.UserGroupPricingExtended{},
 		&models.Bill{},
 		&models.BillItem{},
+		&models.EnterprisePricing{}, // Phase 5: 大客户独立定价
+		&models.SupplierApiKey{},     // Phase 6: 供应商 API Key
+		&models.SupplierModel{},      // Phase 6: 供应商模型关联
+		&models.PriceHistory{},       // Phase 6: 价格变更历史
+		&models.SupplierFailureEvent{}, // Phase 8: 供应商失败事件
+		&models.FailoverEvent{},      // Phase 8: 故障转移事件
+		&models.HealthCheckHistory{}, // Phase 8: 健康检查历史
+			&models.AuditLog{},           // Phase 9: 审计日志
 	}
 
 	// 逐个迁移模型
@@ -218,11 +226,11 @@ func registerQueryCallbacks(db *gorm.DB) {
 	db.Callback().Query().After("gorm:query").Register("query:log_slow", func(db *gorm.DB) {
 		if startTime, ok := db.InstanceGet("query:start_time"); ok {
 			if start, ok := startTime.(time.Time); ok {
-				elapsed := time.Since(start)
-				// 记录超过 100ms 的查询
-				if elapsed > 100*time.Millisecond {
-					log.Printf("⚠️  Slow query detected: %v took %v", db.Statement.SQL.String(), elapsed)
-				}
+			elapsed := time.Since(start)
+			// 记录超过 100ms 的查询
+			if elapsed > 100*time.Millisecond {
+				log.Printf("⚠️  Slow query detected: %v took %v", db.Statement.SQL.String(), elapsed)
+			}
 			}
 		}
 	})
@@ -236,10 +244,10 @@ func registerQueryCallbacks(db *gorm.DB) {
 	db.Callback().Create().After("gorm:create").Register("create:log_slow", func(db *gorm.DB) {
 		if startTime, ok := db.InstanceGet("create:start_time"); ok {
 			if start, ok := startTime.(time.Time); ok {
-				elapsed := time.Since(start)
-				if elapsed > 100*time.Millisecond {
-					log.Printf("⚠️  Slow create detected: %v took %v", db.Statement.SQL.String(), elapsed)
-				}
+			elapsed := time.Since(start)
+			if elapsed > 100*time.Millisecond {
+				log.Printf("⚠️  Slow create detected: %v took %v", db.Statement.SQL.String(), elapsed)
+			}
 			}
 		}
 	})
@@ -253,10 +261,10 @@ func registerQueryCallbacks(db *gorm.DB) {
 	db.Callback().Update().After("gorm:update").Register("update:log_slow", func(db *gorm.DB) {
 		if startTime, ok := db.InstanceGet("update:start_time"); ok {
 			if start, ok := startTime.(time.Time); ok {
-				elapsed := time.Since(start)
-				if elapsed > 100*time.Millisecond {
-					log.Printf("⚠️  Slow update detected: %v took %v", db.Statement.SQL.String(), elapsed)
-				}
+			elapsed := time.Since(start)
+			if elapsed > 100*time.Millisecond {
+				log.Printf("⚠️  Slow update detected: %v took %v", db.Statement.SQL.String(), elapsed)
+			}
 			}
 		}
 	})

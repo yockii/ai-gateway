@@ -16,9 +16,16 @@ import (
 
 // Handler API 处理器
 type Handler struct {
-	gateway      *gateway.Gateway
-	adminService *services.AdminService
-	userService  *services.UserService
+	enterpriseService *services.EnterprisePricingService
+	pricingService    *services.PricingService
+	gateway           *gateway.Gateway
+	adminService      *services.AdminService
+	userService       *services.UserService
+	supplierApiKeyService *services.SupplierApiKeyService
+	supplierModelService  *services.SupplierModelService
+	keyManager            *services.KeyManager
+	supplierManager       interface{}
+	auditService          *services.AuditService
 }
 
 // New 创建处理器
@@ -38,11 +45,20 @@ func (h *Handler) SetUserService(userService *services.UserService) {
 	h.userService = userService
 }
 
+// SetEnterpriseService 设置企业定价服务
+func (h *Handler) SetEnterpriseService(es *services.EnterprisePricingService) {
+	h.enterpriseService = es
+}
+
+// SetPricingService 设置统一定价服务
+func (h *Handler) SetPricingService(ps *services.PricingService) {
+	h.pricingService = ps
+}
+
 // SetGateway 设置网关（用于依赖注入）
 func (h *Handler) SetGateway(gw *gateway.Gateway) {
 	h.gateway = gw
 }
-
 // ChatCompletions 聊天完成接口
 func (h *Handler) ChatCompletions(c fiber.Ctx) error {
 	// 获取用户 ID
