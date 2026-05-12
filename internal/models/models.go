@@ -24,6 +24,8 @@ type UsageRecord struct {
 	Profit      float64 `json:"profit"`
 
 	// 时间戳
+	// WR-07: 复合索引建议 - 需要迁移时执行:
+	// CREATE INDEX idx_usage_key_created ON usage_records(key_id, created_at);
 	CreatedAt time.Time `json:"created_at" gorm:"index"`
 }
 

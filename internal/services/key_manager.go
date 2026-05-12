@@ -306,6 +306,9 @@ type UpdateKeyOptions struct {
 }
 
 // KeyStats Key 使用统计
+// WR-06: 整数溢出风险 - 对于极高频使用场景，考虑使用 uint64
+// 当前 int64 最大值约为 9.2 * 10^18，对于绝大多数使用场景已足够
+// 如果需要支持更高计数，可以迁移到 uint64 或使用 decimal 存储金额
 type KeyStats struct {
 	KeyID          string
 	TotalRequests  int64
