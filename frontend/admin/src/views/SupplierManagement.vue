@@ -177,16 +177,20 @@ const loadSuppliers = async () => {
   loading.value = true
   error.value = ''
   try {
-    suppliers.value = await suppliersApi.list()
-    // Load model counts for each supplier
+    const data = await suppliersApi.list()
+    suppliers.value = data.data || []
+
+    // 修复 WR-02: 使用后端返回的 model_count 而不是 N+1 查询
+    const modelCountMap: Record<string, number> = {}
     for (const supplier of suppliers.value) {
-      try {
-        const models = await suppliersApi.listModels(supplier.id)
-        supplierModelCount.value[supplier.id] = models.length
-      } catch {
-        supplierModelCount.value[supplier.id] = 0
+      if (typeof supplier.model_count === 'number') {
+        modelCountMap[supplier.id] = supplier.model_count
+      } else {
+        // 降级：如果后端没有返回 model_count，设为 0
+        modelCountMap[supplier.id] = 0
       }
     }
+    supplierModelCount.value = modelCountMap
   } catch (err: any) {
     error.value = err.message || 'Failed to load suppliers'
   } finally {

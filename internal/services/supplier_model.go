@@ -167,3 +167,30 @@ func (s *SupplierModelService) GetModelCost(ctx context.Context, id string) (*mo
 func (s *SupplierModelService) GetModelInfo(ctx context.Context, id string) (*models.SupplierModel, error) {
 	return s.GetModelCost(ctx, id)
 }
+
+// GetSupplierModelCountMap 批量获取供应商模型数量（修复 WR-02: N+1 查询）
+func (s *SupplierModelService) GetSupplierModelCountMap(ctx context.Context) (map[string]int64, error) {
+	type CountResult struct {
+		SupplierID string
+		ModelCount int64
+	}
+
+	var results []CountResult
+	err := s.db.WithContext(ctx).
+		Table("supplier_models").
+		Select("supplier_id, COUNT(*) as model_count").
+		Where("is_active = ?", true).
+		Group("supplier_id").
+		Find(&results).Error
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to get supplier model counts: %w", err)
+	}
+
+	countMap := make(map[string]int64, len(results))
+	for _, r := range results {
+		countMap[r.SupplierID] = r.ModelCount
+	}
+
+	return countMap, nil
+}
