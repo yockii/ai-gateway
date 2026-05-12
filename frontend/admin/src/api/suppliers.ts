@@ -1,5 +1,5 @@
 import client from './client'
-import type { Supplier, SupplierApiKey, SupplierModel, HealthCheckResult, PriceHistory } from '@/types/models'
+import type { Supplier, SupplierApiKey, SupplierModel, HealthCheckResult, PriceHistory, HealthCheckHistory } from '@/types/models'
 
 export interface CreateSupplierRequest {
   name: string
@@ -57,5 +57,6 @@ export const suppliersApi = {
   // Health check
   getHealth: (supplierId: string) => client.get<HealthCheckResult>(`/suppliers/${supplierId}/health`),
   getHealthHistory: (supplierId: string, limit = 50) => client.get<HealthCheckHistory[]>(`/suppliers/${supplierId}/health/history`, { params: { limit } }),
+  testConnection: (supplierId: string) => client.post(`/suppliers/${supplierId}/test`),
   triggerHealthCheck: (supplierId: string) => client.post(`/suppliers/${supplierId}/health/check`),
 }

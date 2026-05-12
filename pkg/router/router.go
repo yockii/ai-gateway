@@ -73,6 +73,7 @@ func Setup(app *fiber.App, gw *gateway.Gateway) {
 	// Admin API
 	admin := app.Group("/v1/admin")
 	admin.Use(middleware.RequireAdmin(tokenManager))
+	admin.Use(middleware.RateLimit()) // WR-09: 添加管理员速率限制
 	
 	admin.Get("/users", handler.ListUsers)
 	admin.Get("/me", handler.GetMe)
@@ -105,8 +106,8 @@ func Setup(app *fiber.App, gw *gateway.Gateway) {
 	admin.Post("/suppliers/:id/api-keys", handler.CreateSupplierApiKey)
 	admin.Put("/suppliers/:id/api-keys/:kid", handler.UpdateSupplierApiKey)
 	admin.Delete("/suppliers/:id/api-keys/:kid", handler.DeleteSupplierApiKey)
-	admin.Patch("/suppliers/:id/api-keys/:id/set-primary", handler.SetPrimarySupplierApiKey)
-	admin.Post("/suppliers/:id/api-keys/:id/rotate", handler.RotateSupplierApiKey)
+	admin.Patch("/suppliers/:id/api-keys/:kid/set-primary", handler.SetPrimarySupplierApiKey)
+	admin.Post("/suppliers/:id/api-keys/:kid/rotate", handler.RotateSupplierApiKey)
 	admin.Get("/suppliers/:id/api-keys/:kid/stats", handler.GetSupplierApiKeyStats)
 	
 	// Phase 6: 供应商模型关联管理

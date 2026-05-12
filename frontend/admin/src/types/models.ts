@@ -36,6 +36,7 @@ export interface Supplier {
   is_active: boolean
   created_at: string
   updated_at: string
+  model_count?: number
 }
 
 export interface MembershipTier {
@@ -182,4 +183,5 @@ export interface HealthStatus {
   is_healthy: boolean
   latency: number
   last_check: string
+  error?: string
 }

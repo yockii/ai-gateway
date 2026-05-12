@@ -96,13 +96,17 @@ func (h *Handler) CreateUserKey(c fiber.Ctx) error {
 		})
 	}
 
-	// 返回完整密钥（仅在创建时显示一次）
+	// 修复 CR-04: 添加安全响应头，警告 API Key 只显示一次
+	c.Set("X-Security-Warning", "API Key is displayed only once. Store it securely now.")
+	c.Set("X-Content-Security-Policy", "default-src 'none'")
+
 	return c.Status(201).JSON(fiber.Map{
 		"data": fiber.Map{
 			"id":         key.ID,
 			"name":       key.Name,
 			"api_key":    key.KeyValue,
 			"created_at": key.CreatedAt,
+			"warning":    "Store this API key securely now. You won't be able to see it again.",
 		},
 	})
 }

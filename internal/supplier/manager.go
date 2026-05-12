@@ -20,14 +20,15 @@ type Manager struct {
 	healthChecker  *HealthChecker
 
 	// 健康检查缓存
-	healthStatus      map[string]*HealthStatus
-	healthMutex       sync.RWMutex
-	backgroundMutex   sync.Mutex // 修复 CR-05: 序列化后台更新防止死锁
+	// 修复 WR-10: 使用单一 Mutex 替代 RWMutex 避免死锁风险
+	// 健康检查主要是写操作，单一 Mutex 性能影响可忽略
+	healthMutex    sync.Mutex
+	healthStatus   map[string]*HealthStatus
 
 	// 健康检查配置
-	checkInterval     time.Duration
-	timeout           time.Duration
-	failureThreshold  int
+	checkInterval    time.Duration
+	timeout          time.Duration
+	failureThreshold int
 }
 
 // SupplierApiKeyServiceInterface 供应商 API Key 服务接口（避免循环依赖）
@@ -203,8 +204,8 @@ func (m *Manager) GetHealthySuppliers(ctx context.Context) ([]*models.Supplier, 
 
 // IsHealthy 检查供应商是否健康
 func (m *Manager) IsHealthy(supplierID string) bool {
-	m.healthMutex.RLock()
-	defer m.healthMutex.RUnlock()
+	m.healthMutex.Lock()
+	defer m.healthMutex.Unlock()
 
 	status, exists := m.healthStatus[supplierID]
 	if !exists {
@@ -331,9 +332,9 @@ func (m *Manager) backgroundHealthCheck() {
 					log.Printf("健康检查: 供应商 %s 检查失败: %v", sid, err)
 				} else {
 					// 修复 CR-05: 序列化后台更新防止与 updateHealthStatus 死锁
-					m.backgroundMutex.Lock()
+					m.healthMutex.Lock()
 					m.updateHealthStatus(result)
-					m.backgroundMutex.Unlock()
+					m.healthMutex.Unlock()
 				}
 			}(supplier.ID)
 		}
@@ -351,16 +352,16 @@ func (m *Manager) loadHealthStatus() error {
 
 // GetHealthStatus 获取健康状态
 func (m *Manager) GetHealthStatus(supplierID string) *HealthStatus {
-	m.healthMutex.RLock()
-	defer m.healthMutex.RUnlock()
+	m.healthMutex.Lock()
+	defer m.healthMutex.Unlock()
 
 	return m.healthStatus[supplierID]
 }
 
 // GetAllHealthStatus 获取所有供应商的健康状态
 func (m *Manager) GetAllHealthStatus() map[string]*HealthStatus {
-	m.healthMutex.RLock()
-	defer m.healthMutex.RUnlock()
+	m.healthMutex.Lock()
+	defer m.healthMutex.Unlock()
 
 	// 返回副本
 	result := make(map[string]*HealthStatus, len(m.healthStatus))

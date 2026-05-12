@@ -177,8 +177,7 @@ const loadSuppliers = async () => {
   loading.value = true
   error.value = ''
   try {
-    const data = await suppliersApi.list()
-    suppliers.value = data.data || []
+    suppliers.value = await suppliersApi.list()
 
     // 修复 WR-02: 使用后端返回的 model_count 而不是 N+1 查询
     const modelCountMap: Record<string, number> = {}

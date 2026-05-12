@@ -1,0 +1,278 @@
+# AI Gateway 生产环境配置
+# 用于生产部署的优化配置
+
+version: '3.8'
+
+services:
+  # PostgreSQL 数据库 - 生产配置
+  postgres:
+    image: postgres:16-alpine
+    container_name: ai-gateway-postgres-prod
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-ai_gateway}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      # 生产环境性能优化
+      POSTGRES_SHARED_BUFFERS: 256MB
+      POSTGRES_EFFECTIVE_CACHE_SIZE: 1GB
+      POSTGRES_MAINTENANCE_WORK_MEM: 64MB
+      POSTGRES_CHECKPOINT_COMPLETION_TARGET: 0.9
+      POSTGRES_WAL_BUFFERS: 16MB
+      POSTGRES_DEFAULT_STATISTICS_TARGET: 100
+    volumes:
+      - postgres_data_prod:/var/lib/postgresql/data
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ai-gateway-network
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
+
+  # Redis 缓存 - 生产配置
+  redis:
+    image: redis:7-alpine
+    container_name: ai-gateway-redis-prod
+    command: >
+      redis-server
+      --appendonly yes
+      --appendfsync everysec
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+      --save 900 1
+      --save 300 10
+      --save 60 10000
+    volumes:
+      - redis_data_prod:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - ai-gateway-network
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  # AI Gateway 后端服务 - 生产配置
+  ai-gateway:
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+      args:
+        GOPROXY: https://goproxy.cn,direct
+    image: ai-gateway:prod
+    container_name: ai-gateway-app-prod
+    environment:
+      # 日志配置 - 生产环境
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      LOG_FORMAT: json
+      ENABLE_METRICS: "true"
+      ENV: production
+
+      # 数据库配置
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: ${POSTGRES_USER:-postgres}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      DB_NAME: ${POSTGRES_DB:-ai_gateway}
+      DB_MAX_OPEN_CONNS: 100
+      DB_MAX_IDLE_CONNS: 10
+      DB_CONN_MAX_LIFETIME: 1h
+
+      # Redis 配置
+      REDIS_ADDR: redis:6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      REDIS_MAX_RETRIES: 3
+      REDIS_POOL_SIZE: 100
+
+      # 服务器配置
+      SERVER_HOST: 0.0.0.0
+      SERVER_PORT: 8080
+      SERVER_READ_TIMEOUT: 30s
+      SERVER_WRITE_TIMEOUT: 30s
+      SERVER_SHUTDOWN_TIMEOUT: 30s
+
+      # 安全配置
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      JWT_SECRET: ${JWT_SECRET}
+      ADMIN_JWT_SECRET: ${ADMIN_JWT_SECRET}
+
+      # 业务配置
+      DEFAULT_PROFIT_MARGIN: 0.1
+      MIN_PROFIT_MARGIN: 0.05
+
+    ports:
+      - "8080:8080"
+      - "9090:9090"
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 30s
+
+    networks:
+      - ai-gateway-network
+      - monitoring-network
+
+    restart: always
+
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 2G
+        reservations:
+          cpus: '2'
+          memory: 1G
+
+  # 用户端前端 - 生产版本
+  user-frontend:
+    build:
+      context: ../../frontend/user
+      dockerfile: Dockerfile
+    image: user-frontend:prod
+    container_name: ai-gateway-user-frontend-prod
+    ports:
+      - "5173:80"
+    depends_on:
+      - ai-gateway
+    networks:
+      - ai-gateway-network
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+
+  # 运维端前端 - 生产版本
+  admin-frontend:
+    build:
+      context: ../../frontend/admin
+      dockerfile: Dockerfile
+    image: admin-frontend:prod
+    container_name: ai-gateway-admin-frontend-prod
+    ports:
+      - "5174:80"
+    depends_on:
+      - ai-gateway
+    networks:
+      - ai-gateway-network
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+
+  # Nginx 反向代理 - 生产配置
+  nginx:
+    image: nginx:alpine
+    container_name: ai-gateway-nginx-prod
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - ./nginx/logs:/var/log/nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - ai-gateway
+      - user-frontend
+      - admin-frontend
+    networks:
+      - ai-gateway-network
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+
+  # Prometheus - 监控
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: ai-gateway-prometheus-prod
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/rules:/etc/prometheus/rules:ro
+      - prometheus_data_prod:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.enable-lifecycle'
+    networks:
+      - monitoring-network
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 2G
+
+  # Grafana - 可视化
+  grafana:
+    image: grafana/grafana:latest
+    container_name: ai-gateway-grafana-prod
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SERVER_ROOT_URL=${GRAFANA_URL:-http://localhost:3000}
+      - GF_INSTALL_PLUGINS=grafana-piechart-panel
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data_prod:/var/lib/grafana
+    networks:
+      - monitoring-network
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 1G
+
+networks:
+  ai-gateway-network:
+    driver: bridge
+  monitoring-network:
+    driver: bridge
+    internal: true
+
+volumes:
+  postgres_data_prod:
+    driver: local
+  redis_data_prod:
+    driver: local
+  prometheus_data_prod:
+    driver: local
+  grafana_data_prod:
+    driver: local

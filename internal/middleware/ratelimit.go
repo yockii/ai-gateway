@@ -43,16 +43,24 @@ func NewRateLimiter(maxRequestsPerMinute int) *RateLimiter {
 // RateLimit 限流中间件
 func (rl *RateLimiter) RateLimit() fiber.Handler {
 	return func(c fiber.Ctx) error {
-		userID := GetUserID(c)
-		if userID == "" {
-			// 如果没有用户 ID，跳过限流检查
-			return c.Next()
+		// 支持 user_id 和 admin_id
+		clientID := GetUserID(c)
+		if clientID == "" {
+			// 尝试获取 admin_id
+			if adminID, ok := c.Locals("admin_id").(string); ok {
+				clientID = "admin:" + adminID
+			} else {
+				// 如果没有用户 ID，跳过限流检查
+				return c.Next()
+			}
+		} else {
+			clientID = "user:" + clientID
 		}
 
 		// 检查是否超过限流
-		allowed, retryAfter := rl.checkRateLimit(userID)
+		allowed, retryAfter := rl.checkRateLimit(clientID)
 		if !allowed {
-			log.Printf("限流触发: 用户=%s IP=%s", userID, c.IP())
+			log.Printf("限流触发: 客户端=%s IP=%s", clientID, c.IP())
 			c.Set("Retry-After", retryAfter.String())
 			return c.Status(fiber.StatusTooManyRequests).JSON(api.ErrorResponse{
 				Error: api.ErrorDetail{
@@ -64,7 +72,7 @@ func (rl *RateLimiter) RateLimit() fiber.Handler {
 		}
 
 		// 记录本次请求
-		rl.recordRequest(userID)
+		rl.recordRequest(clientID)
 
 		return c.Next()
 	}
