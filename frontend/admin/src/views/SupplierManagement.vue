@@ -151,7 +151,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, nextTick } from 'vue'
+import { ref, onMounted, nextTick, watch } from 'vue'
 import { suppliersApi } from '@/api/suppliers'
 import type { Supplier } from '@/types/models'
 import ApiKeyList from '@/components/suppliers/ApiKeyList.vue'
@@ -249,21 +249,12 @@ onMounted(() => {
   loadSuppliers()
 })
 
-// Watch for tab changes to load health chart
-const watchActiveTab = () => {
+// 修复 WR-04: 使用 Vue watch API 替代不安全的轮询
+watch(activeTab, (newTab) => {
   nextTick(() => {
-    if (activeTab.value === 'health') {
+    if (newTab === 'health') {
       loadHealthChart()
     }
   })
-}
-
-// Simple watch implementation
-let lastTab = activeTab.value
-setInterval(() => {
-  if (activeTab.value !== lastTab) {
-    lastTab = activeTab.value
-    watchActiveTab()
-  }
-}, 100)
+})
 </script>
