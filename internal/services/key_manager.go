@@ -187,7 +187,7 @@ func (km *KeyManager) UpdateKey(ctx context.Context, keyID, userID string, opts 
 	return nil
 }
 
-// GetKeyStats 获取 API Key 使用统计
+// GetKeyStats 获取 API Key 使用统计（修复 CR-10: 使用范围查询）
 func (km *KeyManager) GetKeyStats(ctx context.Context, keyID string) (*KeyStats, error) {
 	var key models.UserAPIKey
 	err := km.db.WithContext(ctx).Where("id = ?", keyID).First(&key).Error
@@ -195,27 +195,30 @@ func (km *KeyManager) GetKeyStats(ctx context.Context, keyID string) (*KeyStats,
 		return nil, fmt.Errorf("key not found: %w", err)
 	}
 
-	// 获取今日统计
-	today := time.Now().UTC().Format("2006-01-02")
+	now := time.Now().UTC()
+
+	// 获取今日统计（使用范围查询代替 DATE() 函数）
+	todayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+	todayEnd := todayStart.AddDate(0, 0, 1)
 	var dailyStats struct {
 		Requests int64
 		Tokens   int64
 		Cost     float64
 	}
 	km.db.WithContext(ctx).Model(&models.UsageRecord{}).
-		Where("key_id = ? AND DATE(created_at) = ?", keyID, today).
+		Where("key_id = ? AND created_at >= ? AND created_at < ?", keyID, todayStart, todayEnd).
 		Select("COUNT(*) as requests, COALESCE(SUM(total_tokens), 0) as tokens, COALESCE(SUM(selling_price), 0) as cost").
 		Scan(&dailyStats)
 
-	// 获取本月统计
-	monthStart := time.Now().UTC().AddDate(0, 0, -time.Now().Day()+1).Format("2006-01-02")
+	// 获取本月统计（使用范围查询）
+	monthStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
 	var monthlyStats struct {
 		Requests int64
 		Tokens   int64
 		Cost     float64
 	}
 	km.db.WithContext(ctx).Model(&models.UsageRecord{}).
-		Where("key_id = ? AND DATE(created_at) >= ?", keyID, monthStart).
+		Where("key_id = ? AND created_at >= ?", keyID, monthStart).
 		Select("COUNT(*) as requests, COALESCE(SUM(total_tokens), 0) as tokens, COALESCE(SUM(selling_price), 0) as cost").
 		Scan(&monthlyStats)
 
@@ -246,7 +249,7 @@ func (km *KeyManager) GetKeyStats(ctx context.Context, keyID string) (*KeyStats,
 	}, nil
 }
 
-// CheckQuota 检查额度限制
+// CheckQuota 检查额度限制（修复 CR-10: 使用范围查询）
 func (km *KeyManager) CheckQuota(ctx context.Context, keyID string) error {
 	var key models.UserAPIKey
 	err := km.db.WithContext(ctx).Where("id = ?", keyID).First(&key).Error
@@ -254,12 +257,15 @@ func (km *KeyManager) CheckQuota(ctx context.Context, keyID string) error {
 		return fmt.Errorf("key not found: %w", err)
 	}
 
-	// 检查每日额度
+	now := time.Now().UTC()
+
+	// 检查每日额度（使用范围查询代替 DATE() 函数）
 	if key.QuotaDaily > 0 {
-		today := time.Now().UTC().Format("2006-01-02")
+		todayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+		todayEnd := todayStart.AddDate(0, 0, 1)
 		var dailyCount int64
 		km.db.WithContext(ctx).Model(&models.UsageRecord{}).
-			Where("key_id = ? AND DATE(created_at) = ?", keyID, today).
+			Where("key_id = ? AND created_at >= ? AND created_at < ?", keyID, todayStart, todayEnd).
 			Count(&dailyCount)
 
 		if dailyCount >= key.QuotaDaily {
@@ -267,9 +273,9 @@ func (km *KeyManager) CheckQuota(ctx context.Context, keyID string) error {
 		}
 	}
 
-	// 检查每月额度
+	// 检查每月额度（使用范围查询）
 	if key.QuotaMonthly > 0 {
-		monthStart := time.Now().UTC().AddDate(0, 0, -time.Now().Day()+1)
+		monthStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
 		var monthlyCount int64
 		km.db.WithContext(ctx).Model(&models.UsageRecord{}).
 			Where("key_id = ? AND created_at >= ?", keyID, monthStart).
@@ -284,7 +290,7 @@ func (km *KeyManager) CheckQuota(ctx context.Context, keyID string) error {
 }
 
 // RecordUsage 记录使用量（由 gateway 在请求完成后调用）
-func (km *KeyManager) RecordUsage(ctx context.Context, keyID string, usage *UsageData) error {
+func (km *KeyManager) RecordUsage(ctx context.Context, keyID string, usage interface{}) error {
 	// 这个方法主要用于更新使用记录的 key_id 字段
 	// 实际的 UsageRecord 创建由 gateway 层负责
 	return nil
@@ -299,30 +305,18 @@ type UpdateKeyOptions struct {
 	ModelConcurrency map[string]int64
 }
 
-// KeyStats API Key 统计信息
+// KeyStats Key 使用统计
 type KeyStats struct {
-	KeyID           string
-	TotalRequests   int64
-	TotalTokens     int64
-	TotalCost       float64
-	DailyRequests   int64
-	DailyTokens     int64
-	DailyCost       float64
+	KeyID          string
+	TotalRequests  int64
+	TotalTokens    int64
+	TotalCost      float64
+	DailyRequests  int64
+	DailyTokens    int64
+	DailyCost      float64
 	MonthlyRequests int64
-	MonthlyTokens   int64
-	MonthlyCost     float64
-	QuotaDaily      int64
-	QuotaMonthly    int64
-}
-
-// UsageData 使用数据
-type UsageData struct {
-	RequestID   string
-	ModelID     string
-	SupplierID  string
-	InputTokens int32
-	OutputTokens int32
-	TotalTokens int32
-	CostPrice   float64
-	SellingPrice float64
+	MonthlyTokens  int64
+	MonthlyCost    float64
+	QuotaDaily     int64
+	QuotaMonthly   int64
 }

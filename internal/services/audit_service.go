@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/rs/xid"
@@ -14,6 +15,18 @@ import (
 // AuditService 审计日志服务
 type AuditService struct {
 	db *gorm.DB
+}
+
+// escapeLikeWildcard 转义 LIKE 查询中的特殊字符
+func escapeLikeWildcard(input string) string {
+	// 限制关键字长度防止 DoS
+	if len(input) > 100 {
+		input = input[:100]
+	}
+	// 转义 % 和 _ 字符
+	result := strings.ReplaceAll(input, "%", "\\%")
+	result = strings.ReplaceAll(result, "_", "\\_")
+	return result
 }
 
 // NewAuditService 创建审计日志服务
@@ -89,7 +102,9 @@ func (s *AuditService) ListLogs(ctx context.Context, filter models.AuditLogFilte
 		query = query.Where("timestamp <= ?", filter.EndTime)
 	}
 	if filter.Keyword != "" {
-		query = query.Where("entity_id LIKE ? OR admin_name LIKE ?", "%"+filter.Keyword+"%", "%"+filter.Keyword+"%")
+		// 修复 CR-03: 转义 LIKE 特殊字符
+		keyword := escapeLikeWildcard(filter.Keyword)
+		query = query.Where("entity_id LIKE ? OR admin_name LIKE ?", "%"+keyword+"%", "%"+keyword+"%")
 	}
 
 	// 计算总数

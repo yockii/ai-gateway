@@ -298,7 +298,38 @@ func (h *Handler) EnableUserKey(c fiber.Ctx) error {
 
 // GetUserKeyStats 获取 API Key 使用统计
 func (h *Handler) GetUserKeyStats(c fiber.Ctx) error {
+	userID := middleware.GetUserID(c)
 	keyID := c.Params("id")
+
+	// 修复 CR-09: 验证用户拥有该密钥
+	keys, err := h.keyManager.GetUserKeys(c.Context(), userID)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{
+			"error": fiber.Map{
+				"message": "Failed to fetch keys",
+				"type":    "api_error",
+				"code":    500,
+			},
+		})
+	}
+
+	// 查找目标密钥并验证所有权
+	var found bool
+	for _, key := range keys {
+		if key.ID == keyID {
+			found = true
+			break
+		}
+	}
+	if !found {
+		return c.Status(404).JSON(fiber.Map{
+			"error": fiber.Map{
+				"message": "Key not found",
+				"type":    "not_found_error",
+				"code":    404,
+			},
+		})
+	}
 
 	stats, err := h.keyManager.GetKeyStats(c.Context(), keyID)
 	if err != nil {

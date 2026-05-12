@@ -29,7 +29,12 @@ func (h *Handler) ListEnterprisePricing(c fiber.Ctx) error {
 }
 
 func (h *Handler) CreateEnterprisePricing(c fiber.Ctx) error {
-	adminID := c.Locals("admin_id").(string)
+	// 修复 CR-11: 使用安全的类型断言
+	adminID, ok := c.Locals("admin_id").(string)
+	if !ok {
+		return c.Status(401).JSON(fiber.Map{"error": fiber.Map{"message": "Unauthorized", "type": "authentication_error"}})
+	}
+
 	var req enterprisePricingRequest
 	if err := c.Bind().Body(&req); err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": fiber.Map{"message": "Invalid request", "type": "invalid_request"}})
@@ -78,7 +83,12 @@ func (h *Handler) GetEnterprisePricing(c fiber.Ctx) error {
 }
 
 func (h *Handler) UpdateEnterprisePricing(c fiber.Ctx) error {
-	adminID := c.Locals("admin_id").(string)
+	// 修复 CR-11: 使用安全的类型断言
+	adminID, ok := c.Locals("admin_id").(string)
+	if !ok {
+		return c.Status(401).JSON(fiber.Map{"error": fiber.Map{"message": "Unauthorized", "type": "authentication_error"}})
+	}
+
 	id := c.Params("id")
 	var req struct {
 		InputPrice      *float64 `json:"input_price"`
@@ -180,7 +190,12 @@ func (h *Handler) DeleteEnterprisePricing(c fiber.Ctx) error {
 }
 
 func (h *Handler) GetUserPricing(c fiber.Ctx) error {
-	userID := c.Locals("user_id").(string)
+	// 修复 CR-11: 使用安全的类型断言
+	userID, ok := c.Locals("user_id").(string)
+	if !ok {
+		return c.Status(401).JSON(fiber.Map{"error": fiber.Map{"message": "Unauthorized", "type": "authentication_error"}})
+	}
+
 	modelID := c.Query("model_id", "")
 	if modelID == "" {
 		return c.Status(400).JSON(fiber.Map{"error": fiber.Map{"message": "model_id required"}})

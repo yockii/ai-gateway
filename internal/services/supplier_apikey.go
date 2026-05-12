@@ -10,6 +10,7 @@ import (
 	"github.com/yockii/ai-gateway/internal/crypto"
 	"github.com/yockii/ai-gateway/internal/database"
 	"github.com/yockii/ai-gateway/internal/models"
+	"gorm.io/gorm"
 )
 
 type SupplierApiKeyService struct {
@@ -124,20 +125,40 @@ func (s *SupplierApiKeyService) GetApiKeyStats(ctx context.Context, keyID string
 	return stats, nil
 }
 
+// SetPrimaryApiKey 设置主密钥（修复 CR-02: 在事务内完成所有操作）
 func (s *SupplierApiKeyService) SetPrimaryApiKey(ctx context.Context, keyID string) error {
+	tx := s.db.WithContext(ctx).Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	// 在事务内获取密钥
 	var key models.SupplierApiKey
-	err := s.db.WithContext(ctx).Where("id = ?", keyID).First(&key).Error
+	err := tx.Where("id = ?", keyID).First(&key).Error
 	if err != nil {
+		tx.Rollback()
 		return fmt.Errorf("failed to get api key: %w", err)
 	}
-	tx := s.db.WithContext(ctx).Begin()
-	tx.Model(&models.SupplierApiKey{}).Where("supplier_id = ? AND is_primary = ?", key.SupplierID, true).Update("is_primary", false)
+
+	// 重置所有主密钥状态
+	result := tx.Model(&models.SupplierApiKey{}).
+		Where("supplier_id = ? AND is_primary = ?", key.SupplierID, true).
+		Update("is_primary", false)
+	if result.Error != nil {
+		tx.Rollback()
+		return fmt.Errorf("failed to reset primary keys: %w", result.Error)
+	}
+
+	// 设置新主密钥
 	key.IsPrimary = true
 	key.UpdatedAt = time.Now().UTC()
 	if err := tx.Save(&key).Error; err != nil {
 		tx.Rollback()
 		return fmt.Errorf("failed to update primary key: %w", err)
 	}
+
 	if err := tx.Commit().Error; err != nil {
 		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
@@ -159,12 +180,15 @@ func (s *SupplierApiKeyService) RotateApiKey(ctx context.Context, supplierID str
 	return s.SetPrimaryApiKey(ctx, backupKey.ID)
 }
 
+// IncrementUsage 增加使用计数（修复 CR-12: 使用原子操作）
 func (s *SupplierApiKeyService) IncrementUsage(ctx context.Context, keyID string) error {
 	now := time.Now().UTC()
-	result := s.db.WithContext(ctx).Model(&models.SupplierApiKey{}).Where("id = ?", keyID).Updates(map[string]interface{}{
-		"current_requests": s.db.WithContext(ctx).Raw("current_requests + 1"),
-		"last_used_at":     now,
-	})
+	result := s.db.WithContext(ctx).Model(&models.SupplierApiKey{}).
+		Where("id = ?", keyID).
+		Updates(map[string]interface{}{
+			"current_requests": gorm.Expr("current_requests + ?", 1),
+			"last_used_at":     now,
+		})
 	if result.Error != nil {
 		return fmt.Errorf("failed to increment usage: %w", result.Error)
 	}
