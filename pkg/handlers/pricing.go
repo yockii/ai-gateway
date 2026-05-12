@@ -39,12 +39,44 @@ func (h *Handler) CreateEnterprisePricing(c fiber.Ctx) error {
 	if err := c.Bind().Body(&req); err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": fiber.Map{"message": "Invalid request", "type": "invalid_request"}})
 	}
-	effectiveDate, _ := time.Parse(time.RFC3339, req.EffectiveDate)
+
+	// 修复 CR-07: 添加输入验证
+	if req.CustomerID == "" {
+		return c.Status(400).JSON(fiber.Map{"error": fiber.Map{"message": "customer_id is required", "type": "invalid_request"}})
+	}
+	if req.CustomerName == "" {
+		return c.Status(400).JSON(fiber.Map{"error": fiber.Map{"message": "customer_name is required", "type": "invalid_request"}})
+	}
+	if req.ModelID == "" {
+		return c.Status(400).JSON(fiber.Map{"error": fiber.Map{"message": "model_id is required", "type": "invalid_request"}})
+	}
+	if req.InputPrice < 0 {
+		return c.Status(400).JSON(fiber.Map{"error": fiber.Map{"message": "input_price cannot be negative", "type": "invalid_request"}})
+	}
+	if req.OutputPrice < 0 {
+		return c.Status(400).JSON(fiber.Map{"error": fiber.Map{"message": "output_price cannot be negative", "type": "invalid_request"}})
+	}
+	if req.MaxCostPrice < 0 {
+		return c.Status(400).JSON(fiber.Map{"error": fiber.Map{"message": "max_cost_price cannot be negative", "type": "invalid_request"}})
+	}
+	if req.MinProfitMargin < 0 || req.MinProfitMargin >= 1 {
+		return c.Status(400).JSON(fiber.Map{"error": fiber.Map{"message": "min_profit_margin must be between 0 and 1", "type": "invalid_request"}})
+	}
+
+	// 解析日期
+	effectiveDate, err := time.Parse(time.RFC3339, req.EffectiveDate)
+	if err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": fiber.Map{"message": "invalid effective_date format, use RFC3339", "type": "invalid_request"}})
+	}
 	var expiryDate *time.Time
 	if req.ExpiryDate != nil {
-		ed, _ := time.Parse(time.RFC3339, *req.ExpiryDate)
+		ed, err := time.Parse(time.RFC3339, *req.ExpiryDate)
+		if err != nil {
+			return c.Status(400).JSON(fiber.Map{"error": fiber.Map{"message": "invalid expiry_date format, use RFC3339", "type": "invalid_request"}})
+		}
 		expiryDate = &ed
 	}
+
 	pricing := &models.EnterprisePricing{
 		CustomerID: req.CustomerID, CustomerName: req.CustomerName, ModelID: req.ModelID,
 		InputPrice: req.InputPrice, OutputPrice: req.OutputPrice, MinProfitMargin: req.MinProfitMargin,

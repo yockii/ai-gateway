@@ -22,6 +22,7 @@ type Manager struct {
 	// 健康检查缓存
 	healthStatus      map[string]*HealthStatus
 	healthMutex       sync.RWMutex
+	backgroundMutex   sync.Mutex // 修复 CR-05: 序列化后台更新防止死锁
 
 	// 健康检查配置
 	checkInterval     time.Duration
@@ -299,7 +300,7 @@ func (m *Manager) updateHealthStatus(result *HealthCheckResult) {
 	}
 }
 
-// backgroundHealthCheck 后台健康检查
+// backgroundHealthCheck 后台健康检查（修复 CR-05: 使用 backgroundMutex 序列化更新）
 func (m *Manager) backgroundHealthCheck() {
 	ticker := time.NewTicker(m.checkInterval)
 	defer ticker.Stop()
@@ -325,9 +326,14 @@ func (m *Manager) backgroundHealthCheck() {
 				ctx, cancel := context.WithTimeout(context.Background(), m.timeout)
 				defer cancel()
 
-				_, err := m.PerformHealthCheck(ctx, sid)
+				result, err := m.PerformHealthCheck(ctx, sid)
 				if err != nil {
 					log.Printf("健康检查: 供应商 %s 检查失败: %v", sid, err)
+				} else {
+					// 修复 CR-05: 序列化后台更新防止与 updateHealthStatus 死锁
+					m.backgroundMutex.Lock()
+					m.updateHealthStatus(result)
+					m.backgroundMutex.Unlock()
 				}
 			}(supplier.ID)
 		}
