@@ -47,16 +47,19 @@ func (b *SSEBroadcaster) RemoveClient(client *SSEClient) {
 	}
 }
 
-// Broadcast 广播消息到所有客户端
+// Broadcast 广播消息到所有客户端（修复 WR-01: 清理已关闭/已满的客户端）
 func (b *SSEBroadcaster) Broadcast(message fiber.Map) {
-	b.mutex.RLock()
-	defer b.mutex.RUnlock()
+	b.mutex.Lock()
+	defer b.mutex.Unlock()
 
 	for client := range b.clients {
 		select {
 		case client.Channel <- message:
+			// 发送成功
 		default:
-			// 客户端通道已满，跳过
+			// 客户端通道已满或已关闭 - 移除该客户端
+			delete(b.clients, client)
+			close(client.Channel)
 		}
 	}
 }

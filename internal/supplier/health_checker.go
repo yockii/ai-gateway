@@ -103,8 +103,12 @@ func (hc *HealthChecker) PerformRealHealthCheck(ctx context.Context, supplierID 
 	return result, nil
 }
 
-// checkOpenAI 检查 OpenAI 供应商
+// checkOpenAI 检查 OpenAI 供应商（修复 WR-05: 确保有超时）
 func (hc *HealthChecker) checkOpenAI(ctx context.Context, apiKey string) (error, int) {
+	// 确保我们有超时
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
 	baseURL := "https://api.openai.com"
 
 	req, err := http.NewRequestWithContext(ctx, "GET", baseURL+"/v1/models", nil)
@@ -130,8 +134,12 @@ func (hc *HealthChecker) checkOpenAI(ctx context.Context, apiKey string) (error,
 	return nil, resp.StatusCode
 }
 
-// checkAnthropic 检查 Anthropic 供应商
+// checkAnthropic 检查 Anthropic 供应商（修复 WR-05: 确保有超时）
 func (hc *HealthChecker) checkAnthropic(ctx context.Context, apiKey string) (error, int) {
+	// 确保我们有超时
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
 	baseURL := "https://api.anthropic.com"
 
 	req, err := http.NewRequestWithContext(ctx, "GET", baseURL+"/v1/messages", nil)

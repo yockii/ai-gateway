@@ -11,6 +11,12 @@ import (
 	"github.com/yockii/ai-gateway/internal/models"
 )
 
+// 利润率边界常量（修复 WR-08）
+const (
+	MinProfitMarginMin = 0.01 // 1% - 最小允许利润率
+	MinProfitMarginMax = 0.50 // 50% - 最大允许利润率
+)
+
 // EnterprisePricingService 大客户定价服务 (Phase 5)
 type EnterprisePricingService struct {
 	db *database.DB
@@ -55,9 +61,10 @@ func (s *EnterprisePricingService) SetEnterprisePrice(
 	pricing *models.EnterprisePricing,
 	adminID string,
 ) error {
-	// 验证利润率
-	if pricing.MinProfitMargin <= 0 || pricing.MinProfitMargin >= 1 {
-		return fmt.Errorf("invalid min_profit_margin: must be between 0 and 1")
+	// 验证利润率（修复 WR-08: 设置合理的业务边界）
+	if pricing.MinProfitMargin < MinProfitMarginMin || pricing.MinProfitMargin > MinProfitMarginMax {
+		return fmt.Errorf("invalid min_profit_margin: must be between %.0f%% and %.0f%%",
+			MinProfitMarginMin*100, MinProfitMarginMax*100)
 	}
 
 	// 检查是否已存在
@@ -160,9 +167,10 @@ func (s *EnterprisePricingService) UpdateEnterprisePrice(
 		return fmt.Errorf("enterprise pricing not found: %w", err)
 	}
 
-	// 验证利润率
-	if pricing.MinProfitMargin <= 0 || pricing.MinProfitMargin >= 1 {
-		return fmt.Errorf("invalid min_profit_margin: must be between 0 and 1")
+	// 验证利润率（修复 WR-08: 设置合理的业务边界）
+	if pricing.MinProfitMargin < MinProfitMarginMin || pricing.MinProfitMargin > MinProfitMarginMax {
+		return fmt.Errorf("invalid min_profit_margin: must be between %.0f%% and %.0f%%",
+			MinProfitMarginMin*100, MinProfitMarginMax*100)
 	}
 
 	// 更新字段

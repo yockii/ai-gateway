@@ -47,15 +47,18 @@ type PriceCalculationResult struct {
 
 func (s *PricingService) GetUserPrice(ctx context.Context, userID, modelID string) (*UserPricingResult, error) {
 	now := time.Now()
-	
+
+	// 尝试企业定价
 	pricing, err := s.enterpriseService.GetEnterprisePrice(ctx, userID, modelID)
 	if err == nil {
-		log.Printf("定价应用: 用户=%s 模型=%s 规则=enterprise", userID, modelID)
+		log.Printf("定价应用: 用户=%s 模型=%s 规则=enterprise 价格=%.4f", userID, modelID, pricing.InputPrice)
 		return &UserPricingResult{UserID: userID, ModelID: modelID, InputPrice: pricing.InputPrice,
 			OutputPrice: pricing.OutputPrice, AppliedRule: "enterprise", EffectiveDate: pricing.EffectiveDate,
 			MinProfitMargin: pricing.MinProfitMargin}, nil
 	}
-	
+	log.Printf("企业定价不可用: 用户=%s 模型=%s 错误=%v", userID, modelID, err)
+
+	// 尝试会员定价
 	membership, err := s.membershipService.GetUserMembership(ctx, userID)
 	if err == nil {
 		discount, _ := s.membershipService.GetModelDiscount(ctx, userID, modelID)
@@ -63,13 +66,20 @@ func (s *PricingService) GetUserPrice(ctx context.Context, userID, modelID strin
 			basePrice, err := s.getBasePrice(ctx, modelID)
 			if err == nil {
 				finalPrice := s.membershipService.ApplyDiscount(basePrice.InputPrice, discount)
+				log.Printf("定价应用: 用户=%s 模型=%s 规则=membership 折扣=%.2f%% 价格=%.4f", userID, modelID, discount*100, finalPrice)
 				return &UserPricingResult{UserID: userID, ModelID: modelID, InputPrice: finalPrice,
 					OutputPrice: finalPrice * 2, AppliedRule: "membership", DiscountRate: discount,
 					EffectiveDate: membership.EffectiveAt, MinProfitMargin: 0.1}, nil
 			}
+			log.Printf("会员定价基础价格不可用: 用户=%s 模型=%s 错误=%v", userID, modelID, err)
+		} else {
+			log.Printf("会员无折扣: 用户=%s 模型=%s", userID, modelID)
 		}
+	} else {
+		log.Printf("会员定价不可用: 用户=%s 错误=%v", userID, err)
 	}
-	
+
+	// 尝试用户组定价
 	var user models.User
 	err = s.db.WithContext(ctx).Where("id = ?", userID).First(&user).Error
 	if err == nil && user.UserGroupID != "" {
@@ -77,17 +87,20 @@ func (s *PricingService) GetUserPrice(ctx context.Context, userID, modelID strin
 		err = s.db.WithContext(ctx).Where("user_group_id = ? AND model_id = ? AND is_active = ?",
 			user.UserGroupID, modelID, true).First(&groupPricing).Error
 		if err == nil {
+			log.Printf("定价应用: 用户=%s 模型=%s 规则=group 价格=%.4f", userID, modelID, groupPricing.InputPrice)
 			return &UserPricingResult{UserID: userID, ModelID: modelID, InputPrice: groupPricing.InputPrice,
 				OutputPrice: groupPricing.OutputPrice, AppliedRule: "group",
 				EffectiveDate: groupPricing.EffectiveDate, MinProfitMargin: groupPricing.MinProfitMargin}, nil
 		}
+		log.Printf("用户组定价不可用: 用户=%s 组=%s 模型=%s 错误=%v", userID, user.UserGroupID, modelID, err)
 	}
-	
+
+	// 使用基础定价
 	basePrice, err := s.getBasePrice(ctx, modelID)
 	if err != nil {
 		return nil, fmt.Errorf("no pricing available: %w", err)
 	}
-	
+	log.Printf("定价应用: 用户=%s 模型=%s 规则=basic 价格=%.4f", userID, modelID, basePrice.InputPrice)
 	return &UserPricingResult{UserID: userID, ModelID: modelID, InputPrice: basePrice.InputPrice,
 		OutputPrice: basePrice.OutputPrice, AppliedRule: "basic", EffectiveDate: now, MinProfitMargin: 0.1}, nil
 }
