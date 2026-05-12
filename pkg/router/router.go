@@ -20,32 +20,39 @@ func Setup(app *fiber.App, gw *gateway.Gateway) {
 	userService := services.NewUserService(gw.GetDB(), gw.GetRedis())
 	handler.SetUserService(userService)
 	tokenManager := auth.NewTokenManager(gw.GetRedis())
-	
+
 	app.Use(middleware.Recovery())
 	app.Use(middleware.Logger())
 	app.Use(middleware.ErrorHandler())
 	app.Use(metrics.PrometheusMiddleware())
-	
+
 	// Phase 5: 初始化定价服务
 	membershipService, _ := services.NewMembershipService(gw.GetDB())
 	enterpriseService, _ := services.NewEnterprisePricingService(gw.GetDB())
 	pricingService, _ := services.NewPricingService(gw.GetDB(), membershipService, enterpriseService)
 	handler.SetEnterpriseService(enterpriseService)
 	handler.SetPricingService(pricingService)
-	
+
 	// Phase 6: 初始化供应商服务
 	supplierApiKeyService, _ := services.NewSupplierApiKeyService(gw.GetDB())
 	supplierModelService, _ := services.NewSupplierModelService(gw.GetDB())
 	handler.SetSupplierApiKeyService(supplierApiKeyService)
 	handler.SetSupplierModelService(supplierModelService)
-	
+
 	// Phase 7: 初始化 KeyManager
 	keyManager, _ := services.NewKeyManager(gw.GetDB())
 	handler.SetKeyManager(keyManager)
-	
+
 	// Phase 8: 初始化供应商管理器和健康检查器
 	supplierManager, _ := supplier.NewManager(gw.GetDB())
+	supplierManager.SetApiKeyService(supplierApiKeyService)
 	handler.SetSupplierManager(supplierManager)
+
+	// 初始化 ModelRouter 并集成到 Gateway
+	modelRouter, _ := services.NewModelRouter(gw.GetDB(), membershipService, supplierManager)
+	gw.SetModelRouter(modelRouter)
+	gw.SetPricingService(pricingService)
+
 	// Phase 9: 初始化审计日志服务
 	auditService, _ := services.NewAuditService(gw.GetDB())
 	handler.SetAuditService(auditService)

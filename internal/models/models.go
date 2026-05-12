@@ -10,6 +10,7 @@ type UsageRecord struct {
 	RequestID  string    `json:"request_id" gorm:"uniqueIndex"` // 幂等键 (per D-08)
 	UserID     string    `json:"user_id" gorm:"index"`
 	ModelID    string    `json:"model_id" gorm:"index"`
+	KeyID      string    `json:"key_id" gorm:"index"`           // Phase 7: 关联 API Key
 	SupplierID string    `json:"supplier_id" gorm:"index"`
 
 	// Token 使用量

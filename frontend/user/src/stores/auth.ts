@@ -72,14 +72,13 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   const logout = async () => {
-    try {
-      await authApi.logout()
-    } finally {
-      token.value = null
-      user.value = null
-      localStorage.removeItem('access_token')
-      localStorage.removeItem('user_info')
-    }
+    // JWT 是无状态的，只需清除本地 token
+    // 不需要等待后端响应，避免因端点不存在而阻塞
+    authApi.logout().catch(() => {})
+    token.value = null
+    user.value = null
+    localStorage.removeItem('access_token')
+    localStorage.removeItem('user_info')
   }
 
   const fetchProfile = async () => {

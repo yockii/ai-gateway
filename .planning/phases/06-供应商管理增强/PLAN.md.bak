@@ -1,0 +1,328 @@
+# Phase 6: 供应商管理增强 - 执行计划
+
+## 基本信息
+
+**Phase ID**: 06
+**Phase 名称**: 供应商管理增强
+**里程碑**: Milestone 2
+**预计时间**: 4 天
+**状态**: 📝 计划中
+
+---
+
+## Phase 目标
+
+完善供应商管理系统，实现：
+1. 供应商 API Key 安全存储和管理
+2. 密钥轮换策略
+3. 多密钥优先级路由
+4. 供应商管理运维界面
+
+---
+
+## 验收标准
+
+### 功能验收
+- [ ] API Key 加密存储
+- [ ] 支持多密钥管理
+- [ ] 密钥轮换自动触发
+- [ ] 优先级路由正常工作
+- [ ] 运维管理界面完整
+
+### 质量验收
+- [ ] 单元测试覆盖率 > 80%
+- [ ] 加密功能验证通过
+- [ ] 代码审查通过
+
+---
+
+## 执行计划
+
+### Task 6.1: 创建加密服务
+
+**文件**: `internal/crypto/encryption.go`
+
+**描述**: 实现 AES-256-GCM 加密服务
+
+**步骤**:
+1. 创建 `EncryptionService` 结构体
+2. 实现 `Encrypt` 方法
+3. 实现 `Decrypt` 方法
+4. 从环境变量读取加密密钥
+5. 添加单元测试
+
+**验收**:
+- [ ] 加密服务实现完成
+- [ ] 单元测试通过
+- [ ] 加密强度符合 AES-256 标准
+
+**预计时间**: 3 小时
+
+---
+
+### Task 6.2: 创建 SupplierApiKey 数据模型
+
+**文件**: `internal/models/supplier_apikey.go`
+
+**描述**: 创建供应商 API Key 数据模型
+
+**步骤**:
+1. 创建 `SupplierApiKey` 结构体
+2. 添加 GORM 标签和验证
+3. 添加数据库索引
+4. 更新 `database.go` 自动迁移
+
+**验收**:
+- [ ] 模型定义完成
+- [ ] GORM 自动迁移成功
+- [ ] 表结构正确创建
+
+**预计时间**: 2 小时
+
+---
+
+### Task 6.3: 实现 SupplierApiKeyService
+
+**文件**: `internal/services/supplier_apikey.go`
+
+**描述**: 实现 API Key 管理的业务逻辑
+
+**方法列表**:
+```go
+// CreateApiKey 创建 API Key
+func (s *SupplierApiKeyService) CreateApiKey(
+    ctx context.Context,
+    key *SupplierApiKey,
+    plaintextKey string,
+) error
+
+// ListApiKeys 列出供应商的 API Keys
+func (s *SupplierApiKeyService) ListApiKeys(
+    ctx context.Context,
+    supplierID string,
+) ([]*SupplierApiKey, error)
+
+// GetBestApiKey 获取最佳可用密钥
+func (s *SupplierApiKeyService) GetBestApiKey(
+    ctx context.Context,
+    supplierID string,
+) (*SupplierApiKey, string, error)
+
+// SetPrimaryApiKey 设置主密钥
+func (s *SupplierApiKeyService) SetPrimaryApiKey(
+    ctx context.Context,
+    keyID string,
+) error
+
+// RotateApiKey 密钥轮换
+func (s *SupplierApiKeyService) RotateApiKey(
+    ctx context.Context,
+    supplierID string,
+) error
+
+// IncrementUsage 增加使用计数
+func (s *SupplierApiKeyService) IncrementUsage(
+    ctx context.Context,
+    keyID string,
+) error
+
+// ShouldRotate 判断是否需要轮换
+func (s *SupplierApiKeyService) ShouldRotate(
+    ctx context.Context,
+    keyID string,
+) (bool, error)
+```
+
+**验收**:
+- [ ] 所有方法实现完成
+- [ ] 单元测试通过
+- [ ] 加密解密正确
+
+**预计时间**: 5 小时
+
+---
+
+### Task 6.4: 创建 API 处理器
+
+**文件**: `pkg/handlers/supplier_apikey.go`
+
+**描述**: 实现 API Key 管理的 API 端点
+
+**API 端点**:
+```
+# 运维端 - API Key 管理
+GET    /v1/admin/suppliers/:id/api-keys              # 获取列表
+POST   /v1/admin/suppliers/:id/api-keys              # 创建
+PUT    /v1/admin/suppliers/:id/api-keys/:kid         # 更新
+DELETE /v1/admin/suppliers/:id/api-keys/:kid         # 删除
+PATCH  /v1/admin/suppliers/:id/api-keys/:id/set-primary  # 设为主密钥
+POST   /v1/admin/suppliers/:id/api-keys/:id/rotate   # 手动轮换
+```
+
+**验收**:
+- [ ] 所有 API 端点实现
+- [ ] 请求验证正确
+- [ ] 错误响应符合规范
+- [ ] 密钥在响应中脱敏
+
+**预计时间**: 3 小时
+
+---
+
+### Task 6.5: 更新路由配置
+
+**文件**: `pkg/router/router.go`
+
+**描述**: 添加新的 API Key 管理路由
+
+**步骤**:
+1. 注册 API Key 管理路由
+2. 添加认证中间件
+3. 添加管理员权限验证
+4. 初始化服务
+
+**验收**:
+- [ ] 路由正确注册
+- [ ] 权限控制有效
+- [ ] 路由测试通过
+
+**预计时间**: 1 小时
+
+---
+
+### Task 6.6: 开发运维端 API Key 管理界面
+
+**文件**: `frontend/admin/src/views/SupplierApiKeys.vue`
+
+**描述**: 创建供应商 API Key 管理页面
+
+**组件结构**:
+```
+SupplierApiKeys.vue
+├── ApiKeyList.vue           // 密钥列表
+├── ApiKeyForm.vue           // 创建/编辑表单
+└── ApiKeyDisplay.vue        // 密钥显示（脱敏）
+```
+
+**功能**:
+- API Key 列表展示
+- 创建/编辑密钥
+- 设置主密钥
+- 手动触发轮换
+- 使用统计展示
+
+**验收**:
+- [ ] 界面美观易用
+- [ ] 所有功能可用
+- [ ] API 集成正确
+- [ ] 密钥显示脱敏
+
+**预计时间**: 5 小时
+
+---
+
+### Task 6.7: 集成测试
+
+**文件**: `tests/integration/supplier_apikey/apikey_test.go`
+
+**描述**: 编写 API Key 管理的集成测试
+
+**测试场景**:
+1. 创建和查询 API Key
+2. 加密解密验证
+3. 密钥轮换验证
+4. 优先级路由验证
+5. API 端到端测试
+
+**验收**:
+- [ ] 所有测试通过
+- [ ] 测试覆盖率 > 80%
+
+**预计时间**: 3 小时
+
+---
+
+## 依赖关系
+
+```
+Task 6.1 (加密服务)
+    ↓
+Task 6.2 (数据模型) ←→ Task 6.3 (ApiKeyService)
+    ↓
+Task 6.4 (API 处理器) ←──────────────┘
+    ↓
+Task 6.5 (路由配置)
+    ↓
+Task 6.6 (前端界面)
+    ↓
+Task 6.7 (集成测试)
+```
+
+---
+
+## Wave 并行计划
+
+可与 **Phase 7 (用户 API Key 实现)** 并行执行：
+
+- **Wave 1-并行**: Phase 6 Task 6.1-6.3 || Phase 7 Task 7.1-7.2
+- **Wave 2-并行**: Phase 6 Task 6.4-6.5 || Phase 7 Task 7.3-7.4
+- **Wave 3-串行**: Phase 6 Task 6.6-6.7 → 前端集成测试
+
+---
+
+## 文件变更清单
+
+### 新建文件
+- `internal/crypto/encryption.go`
+- `internal/crypto/encryption_test.go`
+- `internal/models/supplier_apikey.go`
+- `internal/services/supplier_apikey.go`
+- `internal/services/supplier_apikey_test.go`
+- `pkg/handlers/supplier_apikey.go`
+- `frontend/admin/src/views/SupplierApiKeys.vue`
+- `frontend/admin/src/components/supplier/*.vue`
+- `tests/integration/supplier_apikey/apikey_test.go`
+
+### 修改文件
+- `internal/database/database.go` (添加自动迁移)
+- `pkg/router/router.go` (添加路由)
+- `frontend/admin/src/router/index.ts` (添加路由)
+
+---
+
+## 风险与缓解
+
+| 风险 | 影响 | 概率 | 缓解措施 |
+|------|------|------|----------|
+| 加密密钥管理不当 | 高 | 低 | 环境变量 + 文档 |
+| 性能问题 | 中 | 中 | 加密结果缓存 |
+| 数据库迁移失败 | 中 | 低 | 备份 + 回滚脚本 |
+| 前后端接口不一致 | 中 | 中 | API 文档 + 类型共享 |
+
+---
+
+## 安全检查清单
+
+- [ ] API Key 加密存储 (AES-256-GCM)
+- [ ] 加密密钥从环境变量读取
+- [ ] API 响应中密钥脱敏
+- [ ] 日志中不记录明文密钥
+- [ ] 管理操作需要认证
+- [ ] 支持密钥过期
+
+---
+
+## 完成标志
+
+- [ ] 所有 Task 完成
+- [ ] 验收标准全部满足
+- [ ] 代码审查通过
+- [ ] 测试报告生成
+- [ ] SUMMARY.md 编写
+
+---
+
+**计划创建时间**: 2026-05-11
+**计划创建者**: GSD Phase 6 Planner
+**预计开始时间**: 待确认
+**预计完成时间**: 开始后 4 个工作日

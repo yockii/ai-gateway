@@ -15,6 +15,10 @@ import (
 type Manager struct {
 	db *database.DB
 
+	// 服务依赖
+	apiKeyService  SupplierApiKeyServiceInterface
+	healthChecker  *HealthChecker
+
 	// 健康检查缓存
 	healthStatus      map[string]*HealthStatus
 	healthMutex       sync.RWMutex
@@ -23,6 +27,11 @@ type Manager struct {
 	checkInterval     time.Duration
 	timeout           time.Duration
 	failureThreshold  int
+}
+
+// SupplierApiKeyServiceInterface 供应商 API Key 服务接口（避免循环依赖）
+type SupplierApiKeyServiceInterface interface {
+	GetBestApiKey(ctx context.Context, supplierID string) (*models.SupplierApiKey, string, error)
 }
 
 // HealthStatus 健康状态
@@ -49,24 +58,24 @@ func NewManager(db *database.DB) (*Manager, error) {
 		return nil, fmt.Errorf("database cannot be nil")
 	}
 
-	manager := &Manager{
-		db:               db,
+	mgr := &Manager{
+		db: db,
 		healthStatus:     make(map[string]*HealthStatus),
-		checkInterval:    30 * time.Second,  // 默认 30 秒检查一次
-		timeout:          10 * time.Second,  // 默认 10 秒超时
-		failureThreshold: 3,                 // 默认连续失败 3 次标记为不健康
+		checkInterval:    30 * time.Second,
+		timeout:          10 * time.Second,
+		failureThreshold: 3,
 	}
 
-	// 加载现有供应商的健康状态
-	if err := manager.loadHealthStatus(); err != nil {
-		log.Printf("警告: 加载健康状态失败: %v", err)
-	}
-
-	// 启动后台健康检查
-	go manager.backgroundHealthCheck()
+	// 创建健康检查器
+	mgr.healthChecker = NewHealthChecker(mgr)
 
 	log.Println("✅ 供应商管理器初始化成功")
-	return manager, nil
+	return mgr, nil
+}
+
+// SetApiKeyService 设置 API Key 服务（延迟注入）
+func (m *Manager) SetApiKeyService(service SupplierApiKeyServiceInterface) {
+	m.apiKeyService = service
 }
 
 // AddSupplier 添加供应商
@@ -205,7 +214,7 @@ func (m *Manager) IsHealthy(supplierID string) bool {
 	return status.IsHealthy
 }
 
-// PerformHealthCheck 执行健康检查
+// PerformHealthCheck 执行健康检查 - 使用真实 API Key
 func (m *Manager) PerformHealthCheck(ctx context.Context, supplierID string) (*HealthCheckResult, error) {
 	// 获取供应商信息
 	supplier, err := m.GetSupplier(ctx, supplierID)
@@ -226,15 +235,23 @@ func (m *Manager) PerformHealthCheck(ctx context.Context, supplierID string) (*H
 		}, nil
 	}
 
-	// TODO: 实际的健康检查逻辑
-	// 这里应该调用供应商的 API 进行健康检查
-	// 当前为简化实现，假设所有供应商都是健康的
+	// 获取最佳 API Key 进行真实健康检查
+	if m.apiKeyService != nil && m.healthChecker != nil {
+		_, keyValue, err := m.apiKeyService.GetBestApiKey(ctx, supplierID)
+		if err != nil {
+			log.Printf("警告: 获取供应商 %s 的 API Key 失败: %v", supplierID, err)
+			// 继续进行模拟健康检查
+		} else {
+			// 使用真实 API Key 进行健康检查
+			return m.healthChecker.PerformRealHealthCheck(ctx, supplierID, func(s string) (string, error) {
+				return keyValue, nil
+			})
+		}
+	}
 
+	// 降级：模拟健康检查
 	startTime := time.Now()
-
-	// 模拟健康检查延迟
 	time.Sleep(10 * time.Millisecond)
-
 	latency := time.Since(startTime)
 
 	result := &HealthCheckResult{

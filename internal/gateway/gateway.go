@@ -20,12 +20,14 @@ import (
 
 // Gateway AI Gateway 核心结构
 type Gateway struct {
-	config     *config.Config
-	app        *fiber.App
-	db         *database.DB
-	bifrost    *services.BifrostClient
-	keyManager *services.KeyManager
-	redis      *cache.RedisClient
+	config         *config.Config
+	app            *fiber.App
+	db             *database.DB
+	bifrost        *services.BifrostClient
+	keyManager     *services.KeyManager
+	redis          *cache.RedisClient
+	modelRouter    *services.ModelRouter
+	pricingService *services.PricingService
 }
 
 // New 创建新的 Gateway 实例
@@ -178,16 +180,30 @@ type RouteInfo struct {
 	CostPrice       float64
 }
 
-// SelectBestRoute 选择最优路由 (per D-05, D-09)
+// SelectBestRoute 选择最优路由 (per D-05, D-09) - 集成 ModelRouter 和 PricingService
 func (g *Gateway) SelectBestRoute(ctx context.Context, userID, modelID string) (*RouteInfo, error) {
-	// TODO: 实现智能路由逻辑
-	// 1. 获取用户类型和对应售价
-	// 2. 查询模型的所有可用供应商路由
-	// 3. 计算每个路由的利润空间
-	// 4. 按利润排序，选择最优
-	// 5. 检查供应商健康状态和负载
+	// 使用 ModelRouter 选择最优供应商
+	if g.modelRouter != nil {
+		selection, err := g.modelRouter.SelectBestSupplier(ctx, userID, modelID)
+		if err == nil {
+			logging.Info("ModelRouter 选择供应商",
+				zap.String("supplier", selection.SupplierName),
+				zap.Float64("cost_price", selection.CostPrice),
+				zap.Float64("profit", selection.Profit),
+				zap.Bool("failover", selection.IsFailover),
+			)
+			return &RouteInfo{
+				SupplierID:      selection.SupplierID,
+				SupplierName:    selection.SupplierName,
+				ActualModelName: selection.ActualModelName,
+				Priority:        selection.Priority,
+				CostPrice:       selection.CostPrice,
+			}, nil
+		}
+		logging.Warn("ModelRouter 选择失败，使用默认路由", zap.Error(err))
+	}
 
-	// 简化实现：返回第一个可用路由
+	// 降级：返回默认路由
 	return &RouteInfo{
 		SupplierID:      "supplier-001",
 		SupplierName:    "OpenAI",
@@ -232,6 +248,16 @@ func (g *Gateway) GetDB() *database.DB {
 // GetRedis 获取 Redis 客户端 (per UAT-003)
 func (g *Gateway) GetRedis() *cache.RedisClient {
 	return g.redis
+}
+
+// SetModelRouter 设置模型路由器
+func (g *Gateway) SetModelRouter(mr *services.ModelRouter) {
+	g.modelRouter = mr
+}
+
+// SetPricingService 设置定价服务
+func (g *Gateway) SetPricingService(ps *services.PricingService) {
+	g.pricingService = ps
 }
 
 // GetModels 获取对外模型列表（优化版，只查询必要字段）

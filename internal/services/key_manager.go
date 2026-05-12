@@ -162,3 +162,167 @@ type KeyInfo struct {
 	ConcurrencyLimit int64
 	ModelConcurrency map[string]int64
 }
+
+// UpdateKey 更新 API Key 配置
+func (km *KeyManager) UpdateKey(ctx context.Context, keyID, userID string, opts UpdateKeyOptions) error {
+	result := km.db.WithContext(ctx).Model(&models.UserAPIKey{}).
+		Where("id = ? AND user_id = ?", keyID, userID).
+		Updates(map[string]interface{}{
+			"name":              opts.Name,
+			"quota_daily":       opts.QuotaDaily,
+			"quota_monthly":     opts.QuotaMonthly,
+			"concurrency_limit": opts.ConcurrencyLimit,
+			"model_concurrency": opts.ModelConcurrency,
+		})
+
+	if result.Error != nil {
+		return fmt.Errorf("failed to update key: %w", result.Error)
+	}
+
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("key not found or access denied")
+	}
+
+	log.Printf("✅ API Key 更新成功: 用户=%s KeyID=%s", userID, keyID)
+	return nil
+}
+
+// GetKeyStats 获取 API Key 使用统计
+func (km *KeyManager) GetKeyStats(ctx context.Context, keyID string) (*KeyStats, error) {
+	var key models.UserAPIKey
+	err := km.db.WithContext(ctx).Where("id = ?", keyID).First(&key).Error
+	if err != nil {
+		return nil, fmt.Errorf("key not found: %w", err)
+	}
+
+	// 获取今日统计
+	today := time.Now().UTC().Format("2006-01-02")
+	var dailyStats struct {
+		Requests int64
+		Tokens   int64
+		Cost     float64
+	}
+	km.db.WithContext(ctx).Model(&models.UsageRecord{}).
+		Where("key_id = ? AND DATE(created_at) = ?", keyID, today).
+		Select("COUNT(*) as requests, COALESCE(SUM(total_tokens), 0) as tokens, COALESCE(SUM(selling_price), 0) as cost").
+		Scan(&dailyStats)
+
+	// 获取本月统计
+	monthStart := time.Now().UTC().AddDate(0, 0, -time.Now().Day()+1).Format("2006-01-02")
+	var monthlyStats struct {
+		Requests int64
+		Tokens   int64
+		Cost     float64
+	}
+	km.db.WithContext(ctx).Model(&models.UsageRecord{}).
+		Where("key_id = ? AND DATE(created_at) >= ?", keyID, monthStart).
+		Select("COUNT(*) as requests, COALESCE(SUM(total_tokens), 0) as tokens, COALESCE(SUM(selling_price), 0) as cost").
+		Scan(&monthlyStats)
+
+	// 获取总计
+	var totalStats struct {
+		Requests int64
+		Tokens   int64
+		Cost     float64
+	}
+	km.db.WithContext(ctx).Model(&models.UsageRecord{}).
+		Where("key_id = ?", keyID).
+		Select("COUNT(*) as requests, COALESCE(SUM(total_tokens), 0) as tokens, COALESCE(SUM(selling_price), 0) as cost").
+		Scan(&totalStats)
+
+	return &KeyStats{
+		KeyID:          keyID,
+		TotalRequests:  totalStats.Requests,
+		TotalTokens:    totalStats.Tokens,
+		TotalCost:      totalStats.Cost,
+		DailyRequests:  dailyStats.Requests,
+		DailyTokens:    dailyStats.Tokens,
+		DailyCost:      dailyStats.Cost,
+		MonthlyRequests: monthlyStats.Requests,
+		MonthlyTokens:  monthlyStats.Tokens,
+		MonthlyCost:    monthlyStats.Cost,
+		QuotaDaily:     key.QuotaDaily,
+		QuotaMonthly:   key.QuotaMonthly,
+	}, nil
+}
+
+// CheckQuota 检查额度限制
+func (km *KeyManager) CheckQuota(ctx context.Context, keyID string) error {
+	var key models.UserAPIKey
+	err := km.db.WithContext(ctx).Where("id = ?", keyID).First(&key).Error
+	if err != nil {
+		return fmt.Errorf("key not found: %w", err)
+	}
+
+	// 检查每日额度
+	if key.QuotaDaily > 0 {
+		today := time.Now().UTC().Format("2006-01-02")
+		var dailyCount int64
+		km.db.WithContext(ctx).Model(&models.UsageRecord{}).
+			Where("key_id = ? AND DATE(created_at) = ?", keyID, today).
+			Count(&dailyCount)
+
+		if dailyCount >= key.QuotaDaily {
+			return fmt.Errorf("daily quota exceeded: %d/%d", dailyCount, key.QuotaDaily)
+		}
+	}
+
+	// 检查每月额度
+	if key.QuotaMonthly > 0 {
+		monthStart := time.Now().UTC().AddDate(0, 0, -time.Now().Day()+1)
+		var monthlyCount int64
+		km.db.WithContext(ctx).Model(&models.UsageRecord{}).
+			Where("key_id = ? AND created_at >= ?", keyID, monthStart).
+			Count(&monthlyCount)
+
+		if monthlyCount >= key.QuotaMonthly {
+			return fmt.Errorf("monthly quota exceeded: %d/%d", monthlyCount, key.QuotaMonthly)
+		}
+	}
+
+	return nil
+}
+
+// RecordUsage 记录使用量（由 gateway 在请求完成后调用）
+func (km *KeyManager) RecordUsage(ctx context.Context, keyID string, usage *UsageData) error {
+	// 这个方法主要用于更新使用记录的 key_id 字段
+	// 实际的 UsageRecord 创建由 gateway 层负责
+	return nil
+}
+
+// UpdateKeyOptions 更新 Key 选项
+type UpdateKeyOptions struct {
+	Name             string
+	QuotaDaily       int64
+	QuotaMonthly     int64
+	ConcurrencyLimit int64
+	ModelConcurrency map[string]int64
+}
+
+// KeyStats API Key 统计信息
+type KeyStats struct {
+	KeyID           string
+	TotalRequests   int64
+	TotalTokens     int64
+	TotalCost       float64
+	DailyRequests   int64
+	DailyTokens     int64
+	DailyCost       float64
+	MonthlyRequests int64
+	MonthlyTokens   int64
+	MonthlyCost     float64
+	QuotaDaily      int64
+	QuotaMonthly    int64
+}
+
+// UsageData 使用数据
+type UsageData struct {
+	RequestID   string
+	ModelID     string
+	SupplierID  string
+	InputTokens int32
+	OutputTokens int32
+	TotalTokens int32
+	CostPrice   float64
+	SellingPrice float64
+}
